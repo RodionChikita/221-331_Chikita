@@ -1,0 +1,44 @@
+# Qt build artifacts
+build/
+release/
+debug/
+*.o
+*.obj
+*.ilk
+*.pdb
+*.stash
+Makefile
+Makefile.*
+moc_*.cpp
+moc_*.h
+ui_*.h
+qrc_*.cpp
+*.qmake.stash
+
+# Qt Creator
+*.pro.user
+*.pro.user.*
+*.autosave
+
+# Executables and libraries
+*.exe
+*.dll
+*.so
+*.dylib
+*.apk
+*.app
+
+# Python
+__pycache__/
+*.pyc
+
+# IDE
+.vscode/
+.idea/
+
+# Credentials plaintext (never commit!)
+credentials_plain.json
+
+# OS files
+.DS_Store
+Thumbs.db
