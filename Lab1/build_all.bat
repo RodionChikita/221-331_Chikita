@@ -32,7 +32,7 @@ for %%V in (6.11.0 6.10.0 6.9.0 6.8.2 6.8.1 6.8.0 6.7.3 6.7.2 6.7.0 6.6.3 6.6.0 
     )
 )
 
-echo [ОШИБКА] Qt не найден. Установите Qt 6 или задайте QTDIR вручную:
+echo [ОШИБКА] Qt не найден. Задайте QTDIR вручную:
 echo          set QTDIR=C:\Qt\6.11.0\mingw_64
 echo          build_all.bat
 exit /b 1
@@ -40,27 +40,34 @@ exit /b 1
 :qt_found
 set "PATH=%QTDIR%\bin;%PATH%"
 
-REM Определяем MinGW или MSVC
-echo "%QTDIR%" | findstr /i "mingw" >nul
-if %errorlevel%==0 (
-    set "USE_MINGW=1"
-    echo        Компилятор: MinGW
+REM ============================================================
+REM  Определяем MinGW или MSVC
+REM ============================================================
+set "USE_MINGW=0"
+echo !QTDIR! | findstr /i "mingw" >nul && set "USE_MINGW=1"
 
-    REM Добавляем MinGW tools в PATH
-    for %%D in (C D E) do (
+if "!USE_MINGW!"=="1" (
+    echo        Компилятор: MinGW
+) else (
+    echo        Компилятор: MSVC
+)
+
+if "!USE_MINGW!"=="0" goto :skip_mingw_search
+
+REM Поиск MinGW tools
+for %%D in (C D E) do (
+    if exist "%%D:\Qt\Tools" (
         for /d %%G in ("%%D:\Qt\Tools\mingw*") do (
-            if exist "%%G\bin\g++.exe" (
-                set "PATH=%%G\bin;!PATH!"
-                echo        MinGW tools: %%G
-                goto :mingw_found
+            if exist "%%~G\bin\g++.exe" (
+                set "PATH=%%~G\bin;!PATH!"
+                echo        MinGW tools: %%~G
+                goto :skip_mingw_search
             )
         )
     )
-    :mingw_found
-) else (
-    set "USE_MINGW=0"
-    echo        Компилятор: MSVC
 )
+
+:skip_mingw_search
 
 REM ============================================================
 REM  2. Поиск OpenSSL
@@ -73,21 +80,24 @@ if defined OPENSSL_DIR if exist "%OPENSSL_DIR%\include\openssl\evp.h" (
 )
 
 for %%D in (C D E) do (
-    for %%P in (
-        "%%D:\Qt\Tools\OpenSSLv3\Win_x64"
-        "%%D:\OpenSSL-Win64"
-        "%%D:\Program Files\OpenSSL-Win64"
-        "%%D:\OpenSSL\Win_x64"
-    ) do (
-        if exist "%%~P\include\openssl\evp.h" (
-            set "OPENSSL_DIR=%%~P"
-            echo        Найден: !OPENSSL_DIR!
-            goto :ssl_found
-        )
+    if exist "%%D:\Qt\Tools\OpenSSLv3\Win_x64\include\openssl\evp.h" (
+        set "OPENSSL_DIR=%%D:\Qt\Tools\OpenSSLv3\Win_x64"
+        echo        Найден: !OPENSSL_DIR!
+        goto :ssl_found
+    )
+    if exist "%%D:\OpenSSL-Win64\include\openssl\evp.h" (
+        set "OPENSSL_DIR=%%D:\OpenSSL-Win64"
+        echo        Найден: !OPENSSL_DIR!
+        goto :ssl_found
+    )
+    if exist "%%D:\Program Files\OpenSSL-Win64\include\openssl\evp.h" (
+        set "OPENSSL_DIR=%%D:\Program Files\OpenSSL-Win64"
+        echo        Найден: !OPENSSL_DIR!
+        goto :ssl_found
     )
 )
 
-echo [ОШИБКА] OpenSSL не найден. Установите OpenSSL 3.x или задайте OPENSSL_DIR:
+echo [ОШИБКА] OpenSSL не найден. Задайте OPENSSL_DIR:
 echo          set OPENSSL_DIR=C:\Qt\Tools\OpenSSLv3\Win_x64
 echo          build_all.bat
 exit /b 1
@@ -99,24 +109,28 @@ REM  3. Проверка компилятора
 REM ============================================================
 echo [3/7] Проверка компилятора...
 
-if "%USE_MINGW%"=="1" (
-    where g++ >nul 2>&1
-    if errorlevel 1 (
-        echo [ОШИБКА] g++.exe не найден в PATH.
-        echo          Убедитесь, что Qt MinGW tools установлены через Qt Maintenance Tool.
-        exit /b 1
-    )
-    echo        g++.exe — OK
-    set "MAKE_CMD=mingw32-make"
-) else (
-    where cl >nul 2>&1
-    if errorlevel 1 (
-        echo [ОШИБКА] cl.exe не найден. Запустите из "x64 Native Tools Command Prompt for VS 2022"
-        exit /b 1
-    )
-    echo        cl.exe — OK
-    set "MAKE_CMD=nmake"
+if "!USE_MINGW!"=="1" goto :check_mingw
+
+where cl >nul 2>&1
+if errorlevel 1 (
+    echo [ОШИБКА] cl.exe не найден. Запустите из "x64 Native Tools Command Prompt for VS 2022"
+    exit /b 1
 )
+echo        cl.exe — OK
+set "MAKE_CMD=nmake"
+goto :compiler_ok
+
+:check_mingw
+where g++ >nul 2>&1
+if errorlevel 1 (
+    echo [ОШИБКА] g++.exe не найден в PATH.
+    echo          Убедитесь, что Qt MinGW tools установлены через Qt Maintenance Tool.
+    exit /b 1
+)
+echo        g++.exe — OK
+set "MAKE_CMD=mingw32-make"
+
+:compiler_ok
 
 REM ============================================================
 REM  4. Шифрование файла данных
@@ -125,40 +139,43 @@ echo [4/7] Подготовка зашифрованного файла данн
 
 cd /d "%~dp0Lab1_PassManager"
 
-if not exist "credentials.json.enc" (
-    where python >nul 2>&1
-    if errorlevel 1 (
-        echo [ОШИБКА] Python не найден. Установите Python 3 и добавьте в PATH.
-        exit /b 1
-    )
-    pip install cryptography -q 2>nul
-    python encrypt_credentials.py %PIN%
-    if errorlevel 1 (
-        echo [ОШИБКА] Не удалось зашифровать файл данных.
-        exit /b 1
-    )
-) else (
+if exist "credentials.json.enc" (
     echo        credentials.json.enc уже существует, пропускаю.
     echo        Чтобы пересоздать — удалите файл и запустите снова.
+    goto :encrypt_done
 )
+
+where python >nul 2>&1
+if errorlevel 1 (
+    echo [ОШИБКА] Python не найден. Установите Python 3 и добавьте в PATH.
+    exit /b 1
+)
+pip install cryptography -q 2>nul
+python encrypt_credentials.py %PIN%
+if errorlevel 1 (
+    echo [ОШИБКА] Не удалось зашифровать файл данных.
+    exit /b 1
+)
+
+:encrypt_done
 
 REM ============================================================
 REM  5. Сборка PassManager
 REM ============================================================
 echo [5/7] Сборка Lab1_PassManager...
 
-if exist Makefile %MAKE_CMD% distclean >nul 2>&1
+if exist Makefile !MAKE_CMD! distclean >nul 2>&1
 
-if "%USE_MINGW%"=="1" (
-    qmake Lab1_PassManager.pro "OPENSSL_DIR=%OPENSSL_DIR%" -spec win32-g++
+if "!USE_MINGW!"=="1" (
+    qmake Lab1_PassManager.pro "OPENSSL_DIR=!OPENSSL_DIR!" -spec win32-g++
 ) else (
-    qmake Lab1_PassManager.pro "OPENSSL_DIR=%OPENSSL_DIR%"
+    qmake Lab1_PassManager.pro "OPENSSL_DIR=!OPENSSL_DIR!"
 )
 if errorlevel 1 (
     echo [ОШИБКА] qmake провалился. Проверьте .pro файл.
     exit /b 1
 )
-%MAKE_CMD% release
+!MAKE_CMD! release
 if errorlevel 1 (
     echo [ОШИБКА] Сборка Lab1_PassManager провалилась.
     exit /b 1
@@ -172,9 +189,9 @@ echo [6/7] Сборка Lab1_Protector...
 
 cd /d "%~dp0Lab1_Protector"
 
-if exist Makefile %MAKE_CMD% distclean >nul 2>&1
+if exist Makefile !MAKE_CMD! distclean >nul 2>&1
 
-if "%USE_MINGW%"=="1" (
+if "!USE_MINGW!"=="1" (
     qmake Lab1_Protector.pro -spec win32-g++
 ) else (
     qmake Lab1_Protector.pro
@@ -183,7 +200,7 @@ if errorlevel 1 (
     echo [ОШИБКА] qmake провалился для Protector.
     exit /b 1
 )
-%MAKE_CMD% release
+!MAKE_CMD! release
 if errorlevel 1 (
     echo [ОШИБКА] Сборка Lab1_Protector провалилась.
     exit /b 1
@@ -198,28 +215,28 @@ echo [7/7] Развёртывание в %OUTPUT_DIR%...
 if exist "%OUTPUT_DIR%" rmdir /s /q "%OUTPUT_DIR%"
 mkdir "%OUTPUT_DIR%"
 
-REM Копируем exe
 copy /Y "%~dp0Lab1_PassManager\release\Lab1_PassManager.exe" "%OUTPUT_DIR%\" >nul
 copy /Y "%~dp0Lab1_Protector\release\Lab1_Protector.exe" "%OUTPUT_DIR%\" >nul
-
-REM Копируем зашифрованный файл данных
 copy /Y "%~dp0Lab1_PassManager\credentials.json.enc" "%OUTPUT_DIR%\" >nul
 
-REM windeployqt — копирует все нужные Qt DLL (и MinGW runtime)
 "%QTDIR%\bin\windeployqt.exe" --release --no-translations --no-opengl-sw "%OUTPUT_DIR%\Lab1_PassManager.exe" >nul
 
-REM OpenSSL DLL
-if exist "%OPENSSL_DIR%\bin\libcrypto-3-x64.dll" (
-    copy /Y "%OPENSSL_DIR%\bin\libcrypto-3-x64.dll" "%OUTPUT_DIR%\" >nul
-    copy /Y "%OPENSSL_DIR%\bin\libssl-3-x64.dll" "%OUTPUT_DIR%\" >nul
-) else if exist "%OPENSSL_DIR%\bin\libcrypto-3.dll" (
-    copy /Y "%OPENSSL_DIR%\bin\libcrypto-3.dll" "%OUTPUT_DIR%\" >nul
-    copy /Y "%OPENSSL_DIR%\bin\libssl-3.dll" "%OUTPUT_DIR%\" >nul
-) else if exist "%OPENSSL_DIR%\libcrypto-3-x64.dll" (
-    copy /Y "%OPENSSL_DIR%\libcrypto-3-x64.dll" "%OUTPUT_DIR%\" >nul
-    copy /Y "%OPENSSL_DIR%\libssl-3-x64.dll" "%OUTPUT_DIR%\" >nul
+if exist "!OPENSSL_DIR!\bin\libcrypto-3-x64.dll" (
+    copy /Y "!OPENSSL_DIR!\bin\libcrypto-3-x64.dll" "%OUTPUT_DIR%\" >nul
+    copy /Y "!OPENSSL_DIR!\bin\libssl-3-x64.dll" "%OUTPUT_DIR%\" >nul
+    goto :deploy_done
+)
+if exist "!OPENSSL_DIR!\bin\libcrypto-3.dll" (
+    copy /Y "!OPENSSL_DIR!\bin\libcrypto-3.dll" "%OUTPUT_DIR%\" >nul
+    copy /Y "!OPENSSL_DIR!\bin\libssl-3.dll" "%OUTPUT_DIR%\" >nul
+    goto :deploy_done
+)
+if exist "!OPENSSL_DIR!\libcrypto-3-x64.dll" (
+    copy /Y "!OPENSSL_DIR!\libcrypto-3-x64.dll" "%OUTPUT_DIR%\" >nul
+    copy /Y "!OPENSSL_DIR!\libssl-3-x64.dll" "%OUTPUT_DIR%\" >nul
 )
 
+:deploy_done
 echo.
 echo ============================================================
 echo   ГОТОВО!
