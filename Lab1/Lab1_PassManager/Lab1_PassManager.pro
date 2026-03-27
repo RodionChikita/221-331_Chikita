@@ -36,9 +36,8 @@ win32 {
     !isEmpty(OPENSSL_DIR) {
         INCLUDEPATH += $$OPENSSL_DIR/include
 
-        # MinGW: .lib files from MSVC OpenSSL don't work, link to DLL directly
         mingw {
-            LIBS += -L$$OPENSSL_DIR/lib -lcrypto.dll
+            LIBS += $$OPENSSL_DIR/bin/libcrypto-3-x64.dll
         } else {
             LIBS += -L$$OPENSSL_DIR/lib -llibcrypto
         }
