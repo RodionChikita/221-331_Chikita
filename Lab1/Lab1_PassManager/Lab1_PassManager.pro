@@ -24,16 +24,23 @@ HEADERS += \
 win32 {
     isEmpty(OPENSSL_DIR): OPENSSL_DIR = $$(OPENSSL_DIR)
 
-    !isEmpty(OPENSSL_DIR) {
-        INCLUDEPATH += $$OPENSSL_DIR/include
-        LIBS += -L$$OPENSSL_DIR/lib -lcrypto
-    } else {
+    isEmpty(OPENSSL_DIR) {
         for(p, $$list(C:/Qt/Tools/OpenSSLv3/Win_x64 C:/OpenSSL-Win64)) {
             exists($$p/include/openssl/evp.h) {
-                INCLUDEPATH += $$p/include
-                LIBS += -L$$p/lib -lcrypto
+                OPENSSL_DIR = $$p
                 break()
             }
+        }
+    }
+
+    !isEmpty(OPENSSL_DIR) {
+        INCLUDEPATH += $$OPENSSL_DIR/include
+
+        # MinGW: .lib files from MSVC OpenSSL don't work, link to DLL directly
+        mingw {
+            LIBS += -L$$OPENSSL_DIR/lib -lcrypto.dll
+        } else {
+            LIBS += -L$$OPENSSL_DIR/lib -llibcrypto
         }
     }
 
