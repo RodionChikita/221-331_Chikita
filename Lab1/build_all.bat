@@ -20,7 +20,7 @@ if defined QTDIR if exist "%QTDIR%\bin\qmake.exe" (
     goto :qt_found
 )
 
-for %%V in (6.8.2 6.8.1 6.8.0 6.7.3 6.7.2 6.7.1 6.7.0 6.6.3 6.6.2 6.6.1 6.6.0 6.5.3) do (
+for %%V in (6.11.0 6.10.0 6.9.0 6.8.2 6.8.1 6.8.0 6.7.3 6.7.2 6.7.1 6.7.0 6.6.3 6.6.0 6.5.3) do (
     for %%C in (msvc2022_64 msvc2019_64) do (
         for %%D in (C D E) do (
             if exist "%%D:\Qt\%%V\%%C\bin\qmake.exe" (
@@ -33,7 +33,7 @@ for %%V in (6.8.2 6.8.1 6.8.0 6.7.3 6.7.2 6.7.1 6.7.0 6.6.3 6.6.2 6.6.1 6.6.0 6.
 )
 
 echo [ОШИБКА] Qt не найден. Установите Qt 6 (MSVC 64-bit) или задайте QTDIR вручную:
-echo          set QTDIR=C:\Qt\6.8.2\msvc2022_64
+echo          set QTDIR=C:\Qt\6.11.0\msvc2022_64
 echo          build_all.bat
 exit /b 1
 

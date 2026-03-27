@@ -84,7 +84,7 @@ clean.bat
 Откройте **x64 Native Tools Command Prompt for VS 2022** и выполните:
 
 ```bat
-set QTDIR=C:\Qt\6.8.2\msvc2022_64
+set QTDIR=C:\Qt\6.11.0\msvc2022_64
 set PATH=%QTDIR%\bin;%PATH%
 set OPENSSL_DIR=C:\Qt\Tools\OpenSSLv3\Win_x64
 ```
