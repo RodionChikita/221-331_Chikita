@@ -12,7 +12,7 @@
 ### Описание
 
 Приложение представляет собой менеджер паролей для безопасного хранения учётных данных.
-Реализовано на C++/Qt 6 с использованием библиотеки OpenSSL 3.x для криптографических операций.
+Реализовано на C++/Qt 6.11.0 (MinGW) с использованием библиотеки OpenSSL 3.x для криптографических операций.
 
 #### Функциональность
 
@@ -31,16 +31,16 @@
 | Компонент | Версия | Примечание |
 |-----------|--------|------------|
 | Windows | 10/11 x64 | Обязательно — WinAPI используется для антиотладки и PE-заголовков |
-| Qt | 6.x | Установка через Qt Online Installer, выбрать компонент MSVC 2022 64-bit |
+| Qt | 6.11.0 | Установка через Qt Online Installer, выбрать компонент MinGW 64-bit |
 | OpenSSL | 3.x | Устанавливается вместе с Qt (Qt Tools → OpenSSL) |
-| MSVC | 2022 | Visual Studio 2022 с компонентом "Desktop development with C++" |
+| MinGW | (из Qt) | Устанавливается вместе с Qt (Qt Tools → MinGW) |
 | Python | 3.8+ | Для утилиты шифрования файла данных |
 
 ---
 
 ### Быстрый старт (одна команда)
 
-Откройте **"x64 Native Tools Command Prompt for VS 2022"** (найти в меню Пуск) и выполните:
+Откройте **обычный cmd.exe** (или PowerShell) и выполните:
 
 ```bat
 cd 221-331_Chikita\Lab1
@@ -62,7 +62,7 @@ Lab1_PassManager.exe
 
 Если Qt или OpenSSL установлены в нестандартные пути, задайте их перед запуском:
 ```bat
-set QTDIR=D:\MyQt\6.7.2\msvc2022_64
+set QTDIR=D:\MyQt\6.11.0\mingw_64
 set OPENSSL_DIR=D:\OpenSSL\Win_x64
 build_all.bat
 ```
@@ -81,13 +81,15 @@ clean.bat
 
 #### Шаг 1. Настройка переменных окружения
 
-Откройте **x64 Native Tools Command Prompt for VS 2022** и выполните:
+Откройте **cmd.exe** и выполните:
 
 ```bat
-set QTDIR=C:\Qt\6.11.0\msvc2022_64
-set PATH=%QTDIR%\bin;%PATH%
+set QTDIR=C:\Qt\6.11.0\mingw_64
+set PATH=%QTDIR%\bin;C:\Qt\Tools\mingw1310_64\bin;%PATH%
 set OPENSSL_DIR=C:\Qt\Tools\OpenSSLv3\Win_x64
 ```
+
+Путь `C:\Qt\Tools\mingw1310_64` может отличаться — посмотрите какая папка `mingw*` есть в `C:\Qt\Tools\`.
 
 #### Шаг 2. Подготовка зашифрованного файла учётных данных
 
@@ -101,7 +103,7 @@ python encrypt_credentials.py 1234
 
 ```bat
 qmake Lab1_PassManager.pro
-nmake release
+mingw32-make release
 ```
 
 #### Шаг 4. Сборка Protector
@@ -109,7 +111,7 @@ nmake release
 ```bat
 cd ..\Lab1_Protector
 qmake Lab1_Protector.pro
-nmake release
+mingw32-make release
 ```
 
 #### Шаг 5. Развёртывание
@@ -166,7 +168,7 @@ if (AntiDebug::isDebuggerAttached()) {
     return app.exec();
 }
 ```
-2. Пересоберите проект (`nmake release`) и повторите deploy
+2. Пересоберите проект (`mingw32-make release`) и повторите deploy
 3. Запустите `Lab1_PassManager.exe` из проводника — приложение работает нормально
 4. Запустите `Lab1_PassManager.exe` из отладчика (x64dbg или Qt Creator в режиме Debug) — увидите красное предупреждение, ввод пин-кода будет заблокирован
 5. После демонстрации **закомментируйте** блок обратно (он мешает работе Protector)

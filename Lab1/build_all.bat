@@ -20,8 +20,8 @@ if defined QTDIR if exist "%QTDIR%\bin\qmake.exe" (
     goto :qt_found
 )
 
-for %%V in (6.11.0 6.10.0 6.9.0 6.8.2 6.8.1 6.8.0 6.7.3 6.7.2 6.7.1 6.7.0 6.6.3 6.6.0 6.5.3) do (
-    for %%C in (msvc2022_64 msvc2019_64) do (
+for %%V in (6.11.0 6.10.0 6.9.0 6.8.2 6.8.1 6.8.0 6.7.3 6.7.2 6.7.0 6.6.3 6.6.0 6.5.3) do (
+    for %%C in (mingw_64 msvc2022_64 msvc2019_64) do (
         for %%D in (C D E) do (
             if exist "%%D:\Qt\%%V\%%C\bin\qmake.exe" (
                 set "QTDIR=%%D:\Qt\%%V\%%C"
@@ -32,13 +32,35 @@ for %%V in (6.11.0 6.10.0 6.9.0 6.8.2 6.8.1 6.8.0 6.7.3 6.7.2 6.7.1 6.7.0 6.6.3 
     )
 )
 
-echo [ОШИБКА] Qt не найден. Установите Qt 6 (MSVC 64-bit) или задайте QTDIR вручную:
-echo          set QTDIR=C:\Qt\6.11.0\msvc2022_64
+echo [ОШИБКА] Qt не найден. Установите Qt 6 или задайте QTDIR вручную:
+echo          set QTDIR=C:\Qt\6.11.0\mingw_64
 echo          build_all.bat
 exit /b 1
 
 :qt_found
 set "PATH=%QTDIR%\bin;%PATH%"
+
+REM Определяем MinGW или MSVC
+echo "%QTDIR%" | findstr /i "mingw" >nul
+if %errorlevel%==0 (
+    set "USE_MINGW=1"
+    echo        Компилятор: MinGW
+
+    REM Добавляем MinGW tools в PATH
+    for %%D in (C D E) do (
+        for /d %%G in ("%%D:\Qt\Tools\mingw*") do (
+            if exist "%%G\bin\g++.exe" (
+                set "PATH=%%G\bin;!PATH!"
+                echo        MinGW tools: %%G
+                goto :mingw_found
+            )
+        )
+    )
+    :mingw_found
+) else (
+    set "USE_MINGW=0"
+    echo        Компилятор: MSVC
+)
 
 REM ============================================================
 REM  2. Поиск OpenSSL
@@ -75,16 +97,26 @@ exit /b 1
 REM ============================================================
 REM  3. Проверка компилятора
 REM ============================================================
-echo [3/7] Проверка MSVC...
+echo [3/7] Проверка компилятора...
 
-where cl >nul 2>&1
-if errorlevel 1 (
-    echo [ОШИБКА] Компилятор cl.exe не найден.
-    echo          Запустите этот скрипт из "x64 Native Tools Command Prompt for VS 2022"
-    echo          или выполните: "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat"
-    exit /b 1
+if "%USE_MINGW%"=="1" (
+    where g++ >nul 2>&1
+    if errorlevel 1 (
+        echo [ОШИБКА] g++.exe не найден в PATH.
+        echo          Убедитесь, что Qt MinGW tools установлены через Qt Maintenance Tool.
+        exit /b 1
+    )
+    echo        g++.exe — OK
+    set "MAKE_CMD=mingw32-make"
+) else (
+    where cl >nul 2>&1
+    if errorlevel 1 (
+        echo [ОШИБКА] cl.exe не найден. Запустите из "x64 Native Tools Command Prompt for VS 2022"
+        exit /b 1
+    )
+    echo        cl.exe — OK
+    set "MAKE_CMD=nmake"
 )
-echo        cl.exe — OK
 
 REM ============================================================
 REM  4. Шифрование файла данных
@@ -115,13 +147,18 @@ REM  5. Сборка PassManager
 REM ============================================================
 echo [5/7] Сборка Lab1_PassManager...
 
-if exist Makefile nmake distclean >nul 2>&1
-qmake Lab1_PassManager.pro "OPENSSL_DIR=%OPENSSL_DIR%"
+if exist Makefile %MAKE_CMD% distclean >nul 2>&1
+
+if "%USE_MINGW%"=="1" (
+    qmake Lab1_PassManager.pro "OPENSSL_DIR=%OPENSSL_DIR%" -spec win32-g++
+) else (
+    qmake Lab1_PassManager.pro "OPENSSL_DIR=%OPENSSL_DIR%"
+)
 if errorlevel 1 (
     echo [ОШИБКА] qmake провалился. Проверьте .pro файл.
     exit /b 1
 )
-nmake release
+%MAKE_CMD% release
 if errorlevel 1 (
     echo [ОШИБКА] Сборка Lab1_PassManager провалилась.
     exit /b 1
@@ -135,13 +172,18 @@ echo [6/7] Сборка Lab1_Protector...
 
 cd /d "%~dp0Lab1_Protector"
 
-if exist Makefile nmake distclean >nul 2>&1
-qmake Lab1_Protector.pro
+if exist Makefile %MAKE_CMD% distclean >nul 2>&1
+
+if "%USE_MINGW%"=="1" (
+    qmake Lab1_Protector.pro -spec win32-g++
+) else (
+    qmake Lab1_Protector.pro
+)
 if errorlevel 1 (
     echo [ОШИБКА] qmake провалился для Protector.
     exit /b 1
 )
-nmake release
+%MAKE_CMD% release
 if errorlevel 1 (
     echo [ОШИБКА] Сборка Lab1_Protector провалилась.
     exit /b 1
@@ -163,13 +205,16 @@ copy /Y "%~dp0Lab1_Protector\release\Lab1_Protector.exe" "%OUTPUT_DIR%\" >nul
 REM Копируем зашифрованный файл данных
 copy /Y "%~dp0Lab1_PassManager\credentials.json.enc" "%OUTPUT_DIR%\" >nul
 
-REM windeployqt — копирует все нужные Qt DLL
+REM windeployqt — копирует все нужные Qt DLL (и MinGW runtime)
 "%QTDIR%\bin\windeployqt.exe" --release --no-translations --no-opengl-sw "%OUTPUT_DIR%\Lab1_PassManager.exe" >nul
 
 REM OpenSSL DLL
 if exist "%OPENSSL_DIR%\bin\libcrypto-3-x64.dll" (
     copy /Y "%OPENSSL_DIR%\bin\libcrypto-3-x64.dll" "%OUTPUT_DIR%\" >nul
     copy /Y "%OPENSSL_DIR%\bin\libssl-3-x64.dll" "%OUTPUT_DIR%\" >nul
+) else if exist "%OPENSSL_DIR%\bin\libcrypto-3.dll" (
+    copy /Y "%OPENSSL_DIR%\bin\libcrypto-3.dll" "%OUTPUT_DIR%\" >nul
+    copy /Y "%OPENSSL_DIR%\bin\libssl-3.dll" "%OUTPUT_DIR%\" >nul
 ) else if exist "%OPENSSL_DIR%\libcrypto-3-x64.dll" (
     copy /Y "%OPENSSL_DIR%\libcrypto-3-x64.dll" "%OUTPUT_DIR%\" >nul
     copy /Y "%OPENSSL_DIR%\libssl-3-x64.dll" "%OUTPUT_DIR%\" >nul

@@ -4,8 +4,6 @@
 #ifdef _WIN32
 #include <windows.h>
 
-#pragma comment(lib, "advapi32.lib")
-
 int main(int argc, char *argv[])
 {
     std::wstring passManagerPath;

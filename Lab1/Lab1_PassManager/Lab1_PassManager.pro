@@ -20,21 +20,18 @@ HEADERS += \
     integritycheck.h \
     antidebug.h
 
-# OpenSSL — auto-detect from OPENSSL_DIR env var or qmake parameter
+# OpenSSL
 win32 {
-    # 1) qmake parameter: qmake "OPENSSL_DIR=C:/Qt/Tools/OpenSSLv3/Win_x64"
-    # 2) environment variable: set OPENSSL_DIR=C:\Qt\Tools\OpenSSLv3\Win_x64
     isEmpty(OPENSSL_DIR): OPENSSL_DIR = $$(OPENSSL_DIR)
 
     !isEmpty(OPENSSL_DIR) {
         INCLUDEPATH += $$OPENSSL_DIR/include
-        LIBS += -L$$OPENSSL_DIR/lib -llibcrypto
+        LIBS += -L$$OPENSSL_DIR/lib -lcrypto
     } else {
-        # Fallback: try common paths
         for(p, $$list(C:/Qt/Tools/OpenSSLv3/Win_x64 C:/OpenSSL-Win64)) {
             exists($$p/include/openssl/evp.h) {
                 INCLUDEPATH += $$p/include
-                LIBS += -L$$p/lib -llibcrypto
+                LIBS += -L$$p/lib -lcrypto
                 break()
             }
         }
