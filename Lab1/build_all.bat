@@ -3,18 +3,23 @@ chcp 65001 >nul
 setlocal enabledelayedexpansion
 
 echo ============================================================
-echo   Lab1 — Полная сборка и развёртывание
+echo   Lab1 — Сборка через CMake и развёртывание
 echo ============================================================
 echo.
 
 set "PIN=1234"
 set "OUTPUT_DIR=%~dp0dist"
+set "BUILD_DIR=%~dp0build"
 
 REM ============================================================
 REM  1. Поиск Qt
 REM ============================================================
 echo [1/7] Поиск Qt...
 
+if defined QTDIR if exist "%QTDIR%\bin\qt-cmake.bat" (
+    echo        Найден через QTDIR: %QTDIR%
+    goto :qt_found
+)
 if defined QTDIR if exist "%QTDIR%\bin\qmake.exe" (
     echo        Найден через QTDIR: %QTDIR%
     goto :qt_found
@@ -23,7 +28,7 @@ if defined QTDIR if exist "%QTDIR%\bin\qmake.exe" (
 for %%V in (6.11.0 6.10.0 6.9.0 6.8.2 6.8.1 6.8.0 6.7.3 6.7.2 6.7.0 6.6.3 6.6.0 6.5.3) do (
     for %%C in (mingw_64 msvc2022_64 msvc2019_64) do (
         for %%D in (C D E) do (
-            if exist "%%D:\Qt\%%V\%%C\bin\qmake.exe" (
+            if exist "%%D:\Qt\%%V\%%C\lib\cmake\Qt6\Qt6Config.cmake" (
                 set "QTDIR=%%D:\Qt\%%V\%%C"
                 echo        Найден: !QTDIR!
                 goto :qt_found
@@ -32,12 +37,13 @@ for %%V in (6.11.0 6.10.0 6.9.0 6.8.2 6.8.1 6.8.0 6.7.3 6.7.2 6.7.0 6.6.3 6.6.0 
     )
 )
 
-echo [ОШИБКА] Qt не найден. Задайте QTDIR вручную:
+echo [ОШИБКА] Qt не найден. Задайте QTDIR:
 echo          set QTDIR=C:\Qt\6.11.0\mingw_64
 echo          build_all.bat
 exit /b 1
 
 :qt_found
+set "CMAKE_PREFIX_PATH=!QTDIR!"
 set "PATH=%QTDIR%\bin;%PATH%"
 
 REM ============================================================
@@ -54,7 +60,6 @@ if "!USE_MINGW!"=="1" (
 
 if "!USE_MINGW!"=="0" goto :skip_mingw_search
 
-REM Поиск MinGW tools
 for %%D in (C D E) do (
     if exist "%%D:\Qt\Tools" (
         for /d %%G in ("%%D:\Qt\Tools\mingw*") do (
@@ -98,39 +103,41 @@ for %%D in (C D E) do (
 )
 
 echo [ОШИБКА] OpenSSL не найден. Задайте OPENSSL_DIR:
-echo          set OPENSSL_DIR=C:\Qt\Tools\OpenSSLv3\Win_x64
+echo          set OPENSSL_DIR=C:\OpenSSL-Win64
 echo          build_all.bat
 exit /b 1
 
 :ssl_found
 
 REM ============================================================
-REM  3. Проверка компилятора
+REM  3. Проверка cmake
 REM ============================================================
-echo [3/7] Проверка компилятора...
+echo [3/7] Проверка инструментов...
 
-if "!USE_MINGW!"=="1" goto :check_mingw
-
-where cl >nul 2>&1
+where cmake >nul 2>&1
 if errorlevel 1 (
-    echo [ОШИБКА] cl.exe не найден. Запустите из "x64 Native Tools Command Prompt for VS 2022"
-    exit /b 1
+    if exist "!QTDIR!\bin\qt-cmake.bat" (
+        set "CMAKE_CMD=!QTDIR!\bin\qt-cmake.bat"
+    ) else (
+        echo [ОШИБКА] cmake не найден. Установите CMake и добавьте в PATH.
+        exit /b 1
+    )
+) else (
+    set "CMAKE_CMD=cmake"
 )
-echo        cl.exe — OK
-set "MAKE_CMD=nmake"
-goto :compiler_ok
+echo        cmake — OK
 
-:check_mingw
-where g++ >nul 2>&1
-if errorlevel 1 (
-    echo [ОШИБКА] g++.exe не найден в PATH.
-    echo          Убедитесь, что Qt MinGW tools установлены через Qt Maintenance Tool.
-    exit /b 1
+if "!USE_MINGW!"=="1" (
+    where g++ >nul 2>&1
+    if errorlevel 1 (
+        echo [ОШИБКА] g++.exe не найден в PATH.
+        exit /b 1
+    )
+    echo        g++.exe — OK
+    set "CMAKE_GENERATOR=-G "MinGW Makefiles""
+) else (
+    set "CMAKE_GENERATOR="
 )
-echo        g++.exe — OK
-set "MAKE_CMD=mingw32-make"
-
-:compiler_ok
 
 REM ============================================================
 REM  4. Шифрование файла данных
@@ -141,7 +148,6 @@ cd /d "%~dp0Lab1_PassManager"
 
 if exist "credentials.json.enc" (
     echo        credentials.json.enc уже существует, пропускаю.
-    echo        Чтобы пересоздать — удалите файл и запустите снова.
     goto :encrypt_done
 )
 
@@ -160,51 +166,28 @@ if errorlevel 1 (
 :encrypt_done
 
 REM ============================================================
-REM  5. Сборка PassManager
+REM  5. Сборка CMake (оба проекта)
 REM ============================================================
-echo [5/7] Сборка Lab1_PassManager...
+echo [5/7] CMake configure...
 
-if exist Makefile !MAKE_CMD! distclean >nul 2>&1
+cd /d "%~dp0"
 
-if "!USE_MINGW!"=="1" (
-    qmake Lab1_PassManager.pro "OPENSSL_DIR=!OPENSSL_DIR!" -spec win32-g++
-) else (
-    qmake Lab1_PassManager.pro "OPENSSL_DIR=!OPENSSL_DIR!"
-)
+if not exist "%BUILD_DIR%" mkdir "%BUILD_DIR%"
+
+!CMAKE_CMD! -S . -B "%BUILD_DIR%" !CMAKE_GENERATOR! -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="!QTDIR!" -DOPENSSL_ROOT_DIR="!OPENSSL_DIR!"
 if errorlevel 1 (
-    echo [ОШИБКА] qmake провалился. Проверьте .pro файл.
+    echo [ОШИБКА] CMake configure провалился.
     exit /b 1
 )
-!MAKE_CMD! release
+
+echo [6/7] CMake build...
+
+!CMAKE_CMD! --build "%BUILD_DIR%" --config Release
 if errorlevel 1 (
-    echo [ОШИБКА] Сборка Lab1_PassManager провалилась.
+    echo [ОШИБКА] CMake build провалился.
     exit /b 1
 )
 echo        Lab1_PassManager.exe — собран
-
-REM ============================================================
-REM  6. Сборка Protector
-REM ============================================================
-echo [6/7] Сборка Lab1_Protector...
-
-cd /d "%~dp0Lab1_Protector"
-
-if exist Makefile !MAKE_CMD! distclean >nul 2>&1
-
-if "!USE_MINGW!"=="1" (
-    qmake Lab1_Protector.pro -spec win32-g++
-) else (
-    qmake Lab1_Protector.pro
-)
-if errorlevel 1 (
-    echo [ОШИБКА] qmake провалился для Protector.
-    exit /b 1
-)
-!MAKE_CMD! release
-if errorlevel 1 (
-    echo [ОШИБКА] Сборка Lab1_Protector провалилась.
-    exit /b 1
-)
 echo        Lab1_Protector.exe — собран
 
 REM ============================================================
@@ -215,8 +198,22 @@ echo [7/7] Развёртывание в %OUTPUT_DIR%...
 if exist "%OUTPUT_DIR%" rmdir /s /q "%OUTPUT_DIR%"
 mkdir "%OUTPUT_DIR%"
 
-copy /Y "%~dp0Lab1_PassManager\release\Lab1_PassManager.exe" "%OUTPUT_DIR%\" >nul
-copy /Y "%~dp0Lab1_Protector\release\Lab1_Protector.exe" "%OUTPUT_DIR%\" >nul
+REM Ищем exe в build/ (структура зависит от генератора)
+set "PM_EXE="
+if exist "%BUILD_DIR%\Lab1_PassManager\Lab1_PassManager.exe" set "PM_EXE=%BUILD_DIR%\Lab1_PassManager\Lab1_PassManager.exe"
+if exist "%BUILD_DIR%\Lab1_PassManager\Release\Lab1_PassManager.exe" set "PM_EXE=%BUILD_DIR%\Lab1_PassManager\Release\Lab1_PassManager.exe"
+
+set "PR_EXE="
+if exist "%BUILD_DIR%\Lab1_Protector\Lab1_Protector.exe" set "PR_EXE=%BUILD_DIR%\Lab1_Protector\Lab1_Protector.exe"
+if exist "%BUILD_DIR%\Lab1_Protector\Release\Lab1_Protector.exe" set "PR_EXE=%BUILD_DIR%\Lab1_Protector\Release\Lab1_Protector.exe"
+
+if not defined PM_EXE (
+    echo [ОШИБКА] Lab1_PassManager.exe не найден в build/
+    exit /b 1
+)
+
+copy /Y "!PM_EXE!" "%OUTPUT_DIR%\" >nul
+if defined PR_EXE copy /Y "!PR_EXE!" "%OUTPUT_DIR%\" >nul
 copy /Y "%~dp0Lab1_PassManager\credentials.json.enc" "%OUTPUT_DIR%\" >nul
 
 "%QTDIR%\bin\windeployqt.exe" --release --no-translations --no-opengl-sw "%OUTPUT_DIR%\Lab1_PassManager.exe" >nul

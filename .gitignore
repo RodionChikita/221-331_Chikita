@@ -1,5 +1,11 @@
-# Qt build artifacts
+# CMake build artifacts
 build/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+
+# Qt/qmake build artifacts
 release/
 debug/
 *.o
@@ -7,7 +13,6 @@ debug/
 *.ilk
 *.pdb
 *.stash
-Makefile
 Makefile.*
 moc_*.cpp
 moc_*.h

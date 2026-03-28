@@ -123,28 +123,77 @@ QByteArray encryptAes256Cbc(const QByteArray &plaintext,
 
 QByteArray decryptCredentialsFile(const QString &filePath, const QString &pin)
 {
+    static const int CHUNK_SIZE = 4096;
+
     QFile file(filePath);
     if (!file.open(QIODevice::ReadOnly)) {
         qWarning() << "Cannot open encrypted file:" << filePath;
         return {};
     }
 
-    // File format: first 16 bytes = IV, rest = ciphertext
-    QByteArray fileData = file.readAll();
-    file.close();
-
-    if (fileData.size() <= IV_LEN) {
+    if (file.size() <= IV_LEN) {
         qWarning() << "Encrypted file is too small";
+        file.close();
         return {};
     }
 
-    QByteArray iv = fileData.left(IV_LEN);
-    QByteArray ciphertext = fileData.mid(IV_LEN);
+    QByteArray iv = file.read(IV_LEN);
+    if (iv.size() != IV_LEN) {
+        file.close();
+        return {};
+    }
 
     QByteArray key = deriveKey(pin, LAYER1_SALT);
-    if (key.isEmpty()) return {};
+    if (key.isEmpty()) {
+        file.close();
+        return {};
+    }
 
-    return decryptAes256Cbc(ciphertext, key, iv);
+    EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
+    if (!ctx) {
+        file.close();
+        return {};
+    }
+
+    if (EVP_DecryptInit_ex(ctx, EVP_aes_256_cbc(), nullptr,
+                           reinterpret_cast<const unsigned char*>(key.constData()),
+                           reinterpret_cast<const unsigned char*>(iv.constData())) != 1) {
+        EVP_CIPHER_CTX_free(ctx);
+        file.close();
+        return {};
+    }
+
+    QByteArray plaintext;
+    QByteArray outBuf(CHUNK_SIZE + EVP_MAX_BLOCK_LENGTH, '\0');
+    int outLen = 0;
+
+    while (!file.atEnd()) {
+        QByteArray chunk = file.read(CHUNK_SIZE);
+        if (chunk.isEmpty()) break;
+
+        if (EVP_DecryptUpdate(ctx,
+                              reinterpret_cast<unsigned char*>(outBuf.data()),
+                              &outLen,
+                              reinterpret_cast<const unsigned char*>(chunk.constData()),
+                              chunk.size()) != 1) {
+            EVP_CIPHER_CTX_free(ctx);
+            file.close();
+            return {};
+        }
+        plaintext.append(outBuf.constData(), outLen);
+    }
+    file.close();
+
+    if (EVP_DecryptFinal_ex(ctx,
+                            reinterpret_cast<unsigned char*>(outBuf.data()),
+                            &outLen) != 1) {
+        EVP_CIPHER_CTX_free(ctx);
+        return {};
+    }
+    plaintext.append(outBuf.constData(), outLen);
+
+    EVP_CIPHER_CTX_free(ctx);
+    return plaintext;
 }
 
 QByteArray encryptField(const QByteArray &plaintext, const QString &pin)
