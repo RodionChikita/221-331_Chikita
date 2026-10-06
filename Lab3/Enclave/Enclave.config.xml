@@ -1,0 +1,14 @@
+<!-- ЛР3. Файл свойств анклава Intel SGX.
+     Задаёт версию, лимиты стека/кучи и число потоков (TCS) анклава.
+     Для симуляционного режима значения по умолчанию достаточно. -->
+<EnclaveConfiguration>
+  <ProdID>0</ProdID>
+  <ISVSVN>0</ISVSVN>
+  <StackMaxSize>0x40000</StackMaxSize>
+  <HeapMaxSize>0x100000</HeapMaxSize>
+  <TCSNum>10</TCSNum>
+  <TCSPolicy>1</TCSPolicy>
+  <DisableDebug>0</DisableDebug>
+  <MiscSelect>0</MiscSelect>
+  <MiscMask>0xFFFFFFFF</MiscMask>
+</EnclaveConfiguration>
