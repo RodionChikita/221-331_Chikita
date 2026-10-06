@@ -5,10 +5,14 @@
 ;;; Copyright (c) 1999 - 2001, Microsoft Corporation
 ;;;
 
+;;; Р›Р 2: РґСЂР°Р№РІРµСЂ-С„РёР»СЊС‚СЂ РїСЂРѕР·СЂР°С‡РЅРѕРіРѕ С€РёС„СЂРѕРІР°РЅРёСЏ. РљР»Р°СЃСЃ РёР·РјРµРЅС‘РЅ СЃ ActivityMonitor
+;;; РЅР° Encryption, Р° Altitude РІС‹Р±СЂР°РЅР° РёР· РґРёР°РїР°Р·РѕРЅР° FSFilter Encryption (140000-149999),
+;;; С‚.Рє. С„РёР»СЊС‚СЂ С€РёС„СЂРѕРІР°РЅРёСЏ РґРѕР»Р¶РµРЅ СЃС‚РѕСЏС‚СЊ РІ СЃС‚РµРєРµ РЅРёР¶Рµ Р°РЅС‚РёРІРёСЂСѓСЃРѕРІ Рё РјРѕРЅРёС‚РѕСЂРѕРІ,
+;;; РЅРѕ РІС‹С€Рµ Р±Р°Р·РѕРІРѕР№ С„Р°Р№Р»РѕРІРѕР№ СЃРёСЃС‚РµРјС‹.
 [Version]
 Signature   = "$Windows NT$"
-Class       = "Encryption"
-ClassGuid   = {a0a701c0-a511-42ff-aa6c-06dc0395576f}
+Class       = "Encryption"                              ;С„РёР»СЊС‚СЂ РїСЂРѕР·СЂР°С‡РЅРѕРіРѕ С€РёС„СЂРѕРІР°РЅРёСЏ
+ClassGuid   = {a0a701c0-a511-42ff-aa6c-06dc0395576f}    ;GUID РєР»Р°СЃСЃР° "Encryption"
 Provider    = %ProviderString%
 DriverVer   = 06/16/2007,1.0.0.1
 CatalogFile = passthrough.cat
@@ -114,8 +118,8 @@ HKR,"Instances\"%Instance1.Name%,"Flags",0x00010001,%Instance1.Flags%
 ;;
 
 [Strings]
-ProviderString          = "Moscow Polytechnic University"
-ServiceDescription      = "LR2 transparent AES-256 file encryption mini-filter"
+ProviderString          = "221-331 Chikita"
+ServiceDescription      = "Lab2 Transparent Encryption Mini-Filter Driver"
 ServiceName             = "PassThrough"
 DriverName              = "PassThrough"
 DiskId1                 = "PassThrough Device Installation Disk"
@@ -123,5 +127,5 @@ DiskId1                 = "PassThrough Device Installation Disk"
 ;Instances specific information.
 DefaultInstance         = "PassThrough Instance"
 Instance1.Name          = "PassThrough Instance"
-Instance1.Altitude      = "145000"
+Instance1.Altitude      = "147000"
 Instance1.Flags         = 0x0              ; Allow all attachments

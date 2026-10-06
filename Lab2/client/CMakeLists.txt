@@ -1,6 +1,0 @@
-cmake_minimum_required(VERSION 3.20)
-project(lab2_client C)
-add_executable(lab2_client lab2_client.c)
-if(MSVC)
-    target_compile_options(lab2_client PRIVATE /W4 /WX)
-endif()

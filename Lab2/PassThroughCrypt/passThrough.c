@@ -1,4 +1,4 @@
-﻿/*++
+/*++
 
 Copyright (c) 1999 - 2002  Microsoft Corporation
 
@@ -21,9 +21,90 @@ Environment:
 #include <fltKernel.h>
 #include <dontuse.h>
 #include <suppress.h>
-#include "aes.h"
+#include "aes.h"                 // ЛР2: header-only реализация AES (tiny-AES-c), включён режим AES-256
 
 #pragma prefast(disable:__WARNING_ENCODE_MEMBER_FUNCTION_POINTER, "Not valid for kernel mode drivers")
+
+//
+// ЛР2. Параметры прозрачного шифрования.
+// Драйвер-фильтр шифрует только файлы с расширением LAB2_EXTENSION, остальные
+// проходят без изменений. Ключ и IV зашиты константами (условность лабораторной
+// работы; в доп. задании ключ передаётся драйверу из клиентского приложения).
+//
+#define LAB2_EXTENSION   L"lab2ext"   // признак, по которому срабатывает шифрование
+
+// 32-байтный ключ AES-256 (условность: постоянный ключ, зашитый в драйвере)
+static const UCHAR gLab2Key[32] = {
+    0x60,0x3d,0xeb,0x10,0x15,0xca,0x71,0xbe, 0x2b,0x73,0xae,0xf0,0x85,0x7d,0x77,0x81,
+    0x1f,0x35,0x2c,0x07,0x3b,0x61,0x08,0xd7, 0x2d,0x98,0x10,0xa3,0x09,0x14,0xdf,0xf4
+};
+// 16-байтный вектор инициализации для режима CBC
+static const UCHAR gLab2Iv[16] = {
+    0x00,0x01,0x02,0x03,0x04,0x05,0x06,0x07, 0x08,0x09,0x0a,0x0b,0x0c,0x0d,0x0e,0x0f
+};
+
+//
+// Lab2IsTargetFile — возвращает TRUE, если расширение обрабатываемого файла
+// совпадает с LAB2_EXTENSION. Имя файла извлекается и разбирается стандартными
+// функциями FltGetFileNameInformation/FltParseFileNameInformation; выделенная
+// под имя память обязательно освобождается в этой же функции.
+//
+static BOOLEAN
+Lab2IsTargetFile (
+    _Inout_ PFLT_CALLBACK_DATA Data
+    )
+{
+    PFLT_FILE_NAME_INFORMATION nameInfo = NULL;
+    NTSTATUS status;
+    BOOLEAN matched = FALSE;
+    const UNICODE_STRING required = RTL_CONSTANT_STRING(LAB2_EXTENSION);
+
+    status = FltGetFileNameInformation(
+        Data,
+        FLT_FILE_NAME_NORMALIZED | FLT_FILE_NAME_QUERY_DEFAULT,
+        &nameInfo );
+    if (!NT_SUCCESS(status)) {
+        return FALSE;
+    }
+
+    status = FltParseFileNameInformation( nameInfo );
+    if (NT_SUCCESS(status)) {
+        matched = RtlEqualUnicodeString( &required, &nameInfo->Extension, FALSE );
+    }
+
+    FltReleaseFileNameInformation( nameInfo );   // обязательная очистка памяти
+    return matched;
+}
+
+//
+// Lab2CryptBuffer — шифрует (при записи) или расшифровывает (при чтении)
+// пользовательский буфер фиксированного размера на месте, по алгоритму AES-256-CBC.
+// Для режима CBC длина буфера должна быть кратна 16 байтам; остаток (хвост,
+// не укладывающийся в блок) оставляется без изменений — это допущение лабораторной
+// работы (фиксированный размер файла, кратный блоку).
+//
+static VOID
+Lab2CryptBuffer (
+    _Inout_updates_bytes_(length) PUCHAR buffer,
+    _In_ ULONG length,
+    _In_ BOOLEAN encrypt
+    )
+{
+    struct AES_ctx ctx;
+    ULONG blocks = length / AES_BLOCKLEN;   // число полных 16-байтных блоков
+
+    if (buffer == NULL || blocks == 0) {
+        return;
+    }
+
+    AES_init_ctx_iv( &ctx, gLab2Key, gLab2Iv );
+
+    if (encrypt) {
+        AES_CBC_encrypt_buffer( &ctx, buffer, (size_t)blocks * AES_BLOCKLEN );
+    } else {
+        AES_CBC_decrypt_buffer( &ctx, buffer, (size_t)blocks * AES_BLOCKLEN );
+    }
+}
 
 
 PFLT_FILTER gFilterHandle;
@@ -46,76 +127,76 @@ ULONG gTraceFlags = 0;
 
 DRIVER_INITIALIZE DriverEntry;
 NTSTATUS
-DriverEntry(
+DriverEntry (
     _In_ PDRIVER_OBJECT DriverObject,
     _In_ PUNICODE_STRING RegistryPath
-);
+    );
 
 NTSTATUS
-PtInstanceSetup(
+PtInstanceSetup (
     _In_ PCFLT_RELATED_OBJECTS FltObjects,
     _In_ FLT_INSTANCE_SETUP_FLAGS Flags,
     _In_ DEVICE_TYPE VolumeDeviceType,
     _In_ FLT_FILESYSTEM_TYPE VolumeFilesystemType
-);
+    );
 
 VOID
-PtInstanceTeardownStart(
+PtInstanceTeardownStart (
     _In_ PCFLT_RELATED_OBJECTS FltObjects,
     _In_ FLT_INSTANCE_TEARDOWN_FLAGS Flags
-);
+    );
 
 VOID
-PtInstanceTeardownComplete(
+PtInstanceTeardownComplete (
     _In_ PCFLT_RELATED_OBJECTS FltObjects,
     _In_ FLT_INSTANCE_TEARDOWN_FLAGS Flags
-);
+    );
 
 NTSTATUS
-PtUnload(
+PtUnload (
     _In_ FLT_FILTER_UNLOAD_FLAGS Flags
-);
+    );
 
 NTSTATUS
-PtInstanceQueryTeardown(
+PtInstanceQueryTeardown (
     _In_ PCFLT_RELATED_OBJECTS FltObjects,
     _In_ FLT_INSTANCE_QUERY_TEARDOWN_FLAGS Flags
-);
+    );
 
 FLT_PREOP_CALLBACK_STATUS
-PtPreOperationPassThrough(
+PtPreOperationPassThrough (
     _Inout_ PFLT_CALLBACK_DATA Data,
     _In_ PCFLT_RELATED_OBJECTS FltObjects,
-    _Flt_CompletionContext_Outptr_ PVOID* CompletionContext
-);
+    _Flt_CompletionContext_Outptr_ PVOID *CompletionContext
+    );
 
 VOID
-PtOperationStatusCallback(
+PtOperationStatusCallback (
     _In_ PCFLT_RELATED_OBJECTS FltObjects,
     _In_ PFLT_IO_PARAMETER_BLOCK ParameterSnapshot,
     _In_ NTSTATUS OperationStatus,
     _In_ PVOID RequesterContext
-);
+    );
 
 FLT_POSTOP_CALLBACK_STATUS
-PtPostOperationPassThrough(
+PtPostOperationPassThrough (
     _Inout_ PFLT_CALLBACK_DATA Data,
     _In_ PCFLT_RELATED_OBJECTS FltObjects,
     _In_opt_ PVOID CompletionContext,
     _In_ FLT_POST_OPERATION_FLAGS Flags
-);
+    );
 
 FLT_PREOP_CALLBACK_STATUS
-PtPreOperationNoPostOperationPassThrough(
+PtPreOperationNoPostOperationPassThrough (
     _Inout_ PFLT_CALLBACK_DATA Data,
     _In_ PCFLT_RELATED_OBJECTS FltObjects,
-    _Flt_CompletionContext_Outptr_ PVOID* CompletionContext
-);
+    _Flt_CompletionContext_Outptr_ PVOID *CompletionContext
+    );
 
 BOOLEAN
 PtDoRequestOperationStatus(
     _In_ PFLT_CALLBACK_DATA Data
-);
+    );
 
 //
 //  Assign text sections for each routine.
@@ -339,7 +420,7 @@ CONST FLT_OPERATION_REGISTRATION Callbacks[] = {
 
 CONST FLT_REGISTRATION FilterRegistration = {
 
-    sizeof(FLT_REGISTRATION),         //  Size
+    sizeof( FLT_REGISTRATION ),         //  Size
     FLT_REGISTRATION_VERSION,           //  Version
     0,                                  //  Flags
 
@@ -362,12 +443,12 @@ CONST FLT_REGISTRATION FilterRegistration = {
 
 
 NTSTATUS
-PtInstanceSetup(
+PtInstanceSetup (
     _In_ PCFLT_RELATED_OBJECTS FltObjects,
     _In_ FLT_INSTANCE_SETUP_FLAGS Flags,
     _In_ DEVICE_TYPE VolumeDeviceType,
     _In_ FLT_FILESYSTEM_TYPE VolumeFilesystemType
-)
+    )
 /*++
 
 Routine Description:
@@ -392,25 +473,25 @@ Return Value:
 
 --*/
 {
-    UNREFERENCED_PARAMETER(FltObjects);
-    UNREFERENCED_PARAMETER(Flags);
-    UNREFERENCED_PARAMETER(VolumeDeviceType);
-    UNREFERENCED_PARAMETER(VolumeFilesystemType);
+    UNREFERENCED_PARAMETER( FltObjects );
+    UNREFERENCED_PARAMETER( Flags );
+    UNREFERENCED_PARAMETER( VolumeDeviceType );
+    UNREFERENCED_PARAMETER( VolumeFilesystemType );
 
     PAGED_CODE();
 
-    PT_DBG_PRINT(PTDBG_TRACE_ROUTINES,
-        ("PassThrough!PtInstanceSetup: Entered\n"));
+    PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,
+                  ("PassThrough!PtInstanceSetup: Entered\n") );
 
     return STATUS_SUCCESS;
 }
 
 
 NTSTATUS
-PtInstanceQueryTeardown(
+PtInstanceQueryTeardown (
     _In_ PCFLT_RELATED_OBJECTS FltObjects,
     _In_ FLT_INSTANCE_QUERY_TEARDOWN_FLAGS Flags
-)
+    )
 /*++
 
 Routine Description:
@@ -436,23 +517,23 @@ Return Value:
 
 --*/
 {
-    UNREFERENCED_PARAMETER(FltObjects);
-    UNREFERENCED_PARAMETER(Flags);
+    UNREFERENCED_PARAMETER( FltObjects );
+    UNREFERENCED_PARAMETER( Flags );
 
     PAGED_CODE();
 
-    PT_DBG_PRINT(PTDBG_TRACE_ROUTINES,
-        ("PassThrough!PtInstanceQueryTeardown: Entered\n"));
+    PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,
+                  ("PassThrough!PtInstanceQueryTeardown: Entered\n") );
 
     return STATUS_SUCCESS;
 }
 
 
 VOID
-PtInstanceTeardownStart(
+PtInstanceTeardownStart (
     _In_ PCFLT_RELATED_OBJECTS FltObjects,
     _In_ FLT_INSTANCE_TEARDOWN_FLAGS Flags
-)
+    )
 /*++
 
 Routine Description:
@@ -472,21 +553,21 @@ Return Value:
 
 --*/
 {
-    UNREFERENCED_PARAMETER(FltObjects);
-    UNREFERENCED_PARAMETER(Flags);
+    UNREFERENCED_PARAMETER( FltObjects );
+    UNREFERENCED_PARAMETER( Flags );
 
     PAGED_CODE();
 
-    PT_DBG_PRINT(PTDBG_TRACE_ROUTINES,
-        ("PassThrough!PtInstanceTeardownStart: Entered\n"));
+    PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,
+                  ("PassThrough!PtInstanceTeardownStart: Entered\n") );
 }
 
 
 VOID
-PtInstanceTeardownComplete(
+PtInstanceTeardownComplete (
     _In_ PCFLT_RELATED_OBJECTS FltObjects,
     _In_ FLT_INSTANCE_TEARDOWN_FLAGS Flags
-)
+    )
 /*++
 
 Routine Description:
@@ -506,13 +587,13 @@ Return Value:
 
 --*/
 {
-    UNREFERENCED_PARAMETER(FltObjects);
-    UNREFERENCED_PARAMETER(Flags);
+    UNREFERENCED_PARAMETER( FltObjects );
+    UNREFERENCED_PARAMETER( Flags );
 
     PAGED_CODE();
 
-    PT_DBG_PRINT(PTDBG_TRACE_ROUTINES,
-        ("PassThrough!PtInstanceTeardownComplete: Entered\n"));
+    PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,
+                  ("PassThrough!PtInstanceTeardownComplete: Entered\n") );
 }
 
 
@@ -521,10 +602,10 @@ Return Value:
 *************************************************************************/
 
 NTSTATUS
-DriverEntry(
+DriverEntry (
     _In_ PDRIVER_OBJECT DriverObject,
     _In_ PUNICODE_STRING RegistryPath
-)
+    )
 /*++
 
 Routine Description:
@@ -548,32 +629,32 @@ Return Value:
 {
     NTSTATUS status;
 
-    UNREFERENCED_PARAMETER(RegistryPath);
+    UNREFERENCED_PARAMETER( RegistryPath );
 
-    PT_DBG_PRINT(PTDBG_TRACE_ROUTINES,
-        ("PassThrough!DriverEntry: Entered\n"));
+    PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,
+                  ("PassThrough!DriverEntry: Entered\n") );
 
     //
     //  Register with FltMgr to tell it our callback routines
     //
 
-    status = FltRegisterFilter(DriverObject,
-        &FilterRegistration,
-        &gFilterHandle);
+    status = FltRegisterFilter( DriverObject,
+                                &FilterRegistration,
+                                &gFilterHandle );
 
-    FLT_ASSERT(NT_SUCCESS(status));
+    FLT_ASSERT( NT_SUCCESS( status ) );
 
-    if (NT_SUCCESS(status)) {
+    if (NT_SUCCESS( status )) {
 
         //
         //  Start filtering i/o
         //
 
-        status = FltStartFiltering(gFilterHandle);
+        status = FltStartFiltering( gFilterHandle );
 
-        if (!NT_SUCCESS(status)) {
+        if (!NT_SUCCESS( status )) {
 
-            FltUnregisterFilter(gFilterHandle);
+            FltUnregisterFilter( gFilterHandle );
         }
     }
 
@@ -581,9 +662,9 @@ Return Value:
 }
 
 NTSTATUS
-PtUnload(
+PtUnload (
     _In_ FLT_FILTER_UNLOAD_FLAGS Flags
-)
+    )
 /*++
 
 Routine Description:
@@ -603,14 +684,14 @@ Return Value:
 
 --*/
 {
-    UNREFERENCED_PARAMETER(Flags);
+    UNREFERENCED_PARAMETER( Flags );
 
     PAGED_CODE();
 
-    PT_DBG_PRINT(PTDBG_TRACE_ROUTINES,
-        ("PassThrough!PtUnload: Entered\n"));
+    PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,
+                  ("PassThrough!PtUnload: Entered\n") );
 
-    FltUnregisterFilter(gFilterHandle);
+    FltUnregisterFilter( gFilterHandle );
 
     return STATUS_SUCCESS;
 }
@@ -620,100 +701,100 @@ Return Value:
     MiniFilter callback routines.
 *************************************************************************/
 FLT_PREOP_CALLBACK_STATUS
-PtPreOperationPassThrough(
+PtPreOperationPassThrough (
     _Inout_ PFLT_CALLBACK_DATA Data,
     _In_ PCFLT_RELATED_OBJECTS FltObjects,
-    _Flt_CompletionContext_Outptr_ PVOID* CompletionContext
-)
+    _Flt_CompletionContext_Outptr_ PVOID *CompletionContext
+    )
+/*++
+
+Routine Description:
+
+    This routine is the main pre-operation dispatch routine for this
+    miniFilter. Since this is just a simple passThrough miniFilter it
+    does not do anything with the callbackData but rather return
+    FLT_PREOP_SUCCESS_WITH_CALLBACK thereby passing it down to the next
+    miniFilter in the chain.
+
+    This is non-pageable because it could be called on the paging path
+
+Arguments:
+
+    Data - Pointer to the filter callbackData that is passed to us.
+
+    FltObjects - Pointer to the FLT_RELATED_OBJECTS data structure containing
+        opaque handles to this filter, instance, its associated volume and
+        file object.
+
+    CompletionContext - The context for the completion routine for this
+        operation.
+
+Return Value:
+
+    The return value is the status of the operation.
+
+--*/
 {
     NTSTATUS status;
-    // !!!
-    UNREFERENCED_PARAMETER(FltObjects);
-    UNREFERENCED_PARAMETER(CompletionContext);
-    // !!!
 
+    UNREFERENCED_PARAMETER( FltObjects );
+    UNREFERENCED_PARAMETER( CompletionContext );
 
-    PFLT_FILE_NAME_INFORMATION nameInfo = NULL;
-    const UNICODE_STRING required_extension = RTL_CONSTANT_STRING(L"lab2ext");
+    PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,
+                  ("PassThrough!PtPreOperationPassThrough: Entered\n") );
 
+    //
+    //  See if this is an operation we would like the operation status
+    //  for.  If so request it.
+    //
+    //  NOTE: most filters do NOT need to do this.  You only need to make
+    //        this call if, for example, you need to know if the oplock was
+    //        actually granted.
+    //
 
-    __try {
+    if (PtDoRequestOperationStatus( Data )) {
 
-
-        status = FltGetFileNameInformation(
-            Data,
-            FLT_FILE_NAME_NORMALIZED |
-            FLT_FILE_NAME_QUERY_DEFAULT,
-            &nameInfo);
+        status = FltRequestOperationStatusCallback( Data,
+                                                    PtOperationStatusCallback,
+                                                    (PVOID)(++OperationStatusCtx) );
         if (!NT_SUCCESS(status)) {
-            __leave;
-        }
 
-
-        status = FltParseFileNameInformation(nameInfo);
-        if (!NT_SUCCESS(status)) { // Stop processing when parsing fails.
-            __leave;
-        }
-
-
-        // Process only the demonstration extension; all other files pass unchanged.
-        if (RtlEqualUnicodeString(
-            &required_extension,
-            &(nameInfo->Extension),
-            FALSE)) // case sensitive
-        {
-            DbgPrint("*** Lab2: Extension matched!");
-            if (Data->Iopb->MajorFunction == IRP_MJ_WRITE) {
-                DbgPrint("*** Lab2: IRP_MJ_WRITE!");
-
-                if (Data->Iopb->Parameters.Write.WriteBuffer == NULL ||
-                    Data->Iopb->Parameters.Write.Length == 0 ||
-                    (Data->Iopb->Parameters.Write.Length % AES_BLOCKLEN) != 0) {
-                    DbgPrint("*** Lab2: skipped WRITE: buffer is null or length is not AES-aligned");
-                    __leave;
-                }
-
-                __try {
-                    struct AES_ctx ctx;
-
-                    uint8_t Aes256iv[] = {
-                        0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
-                        0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F };
-                    const uint8_t Aes256Key[] = {
-                        0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
-                        0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F,
-                        0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
-                        0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F };
-
-                    AES_init_ctx_iv(&ctx, Aes256Key, Aes256iv);
-                    AES_CBC_encrypt_buffer(&ctx, Data->Iopb->Parameters.Write.WriteBuffer, Data->Iopb->Parameters.Write.Length);
-
-                }
-                __except (EXCEPTION_EXECUTE_HANDLER) {
-                    __leave;
-                }
-            }
+            PT_DBG_PRINT( PTDBG_TRACE_OPERATION_STATUS,
+                          ("PassThrough!PtPreOperationPassThrough: FltRequestOperationStatusCallback Failed, status=%08x\n",
+                           status) );
         }
     }
-    __finally {
-        // Release name information on every exit path.
-        if (nameInfo != NULL) {
-            FltReleaseFileNameInformation(nameInfo);
-            nameInfo = NULL;
+
+    //
+    // ЛР2. Прозрачное шифрование при ЗАПИСИ.
+    // Если это операция записи в файл с нашим расширением — шифруем буфер
+    // пользователя на месте до того, как он будет передан нижележащему драйверу
+    // и записан на диск. Остальные операции проходят без изменений.
+    //
+    if (Data->Iopb->MajorFunction == IRP_MJ_WRITE &&
+        Lab2IsTargetFile( Data )) {
+
+        PUCHAR writeBuffer = Data->Iopb->Parameters.Write.WriteBuffer;
+        ULONG  writeLength = Data->Iopb->Parameters.Write.Length;
+
+        DbgPrint( "*** Lab2: IRP_MJ_WRITE matched, encrypting %lu bytes\n", writeLength );
+        if (writeBuffer != NULL && writeLength >= AES_BLOCKLEN) {
+            Lab2CryptBuffer( writeBuffer, writeLength, TRUE /* encrypt */ );
         }
     }
+
     return FLT_PREOP_SUCCESS_WITH_CALLBACK;
 }
 
 
 
 VOID
-PtOperationStatusCallback(
+PtOperationStatusCallback (
     _In_ PCFLT_RELATED_OBJECTS FltObjects,
     _In_ PFLT_IO_PARAMETER_BLOCK ParameterSnapshot,
     _In_ NTSTATUS OperationStatus,
     _In_ PVOID RequesterContext
-)
+    )
 /*++
 
 Routine Description:
@@ -747,120 +828,95 @@ Return Value:
 
 --*/
 {
-    UNREFERENCED_PARAMETER(FltObjects);
+    UNREFERENCED_PARAMETER( FltObjects );
 
-    PT_DBG_PRINT(PTDBG_TRACE_ROUTINES,
-        ("PassThrough!PtOperationStatusCallback: Entered\n"));
+    PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,
+                  ("PassThrough!PtOperationStatusCallback: Entered\n") );
 
-    PT_DBG_PRINT(PTDBG_TRACE_OPERATION_STATUS,
-        ("PassThrough!PtOperationStatusCallback: Status=%08x ctx=%p IrpMj=%02x.%02x \"%s\"\n",
-            OperationStatus,
-            RequesterContext,
-            ParameterSnapshot->MajorFunction,
-            ParameterSnapshot->MinorFunction,
-            FltGetIrpName(ParameterSnapshot->MajorFunction)));
+    PT_DBG_PRINT( PTDBG_TRACE_OPERATION_STATUS,
+                  ("PassThrough!PtOperationStatusCallback: Status=%08x ctx=%p IrpMj=%02x.%02x \"%s\"\n",
+                   OperationStatus,
+                   RequesterContext,
+                   ParameterSnapshot->MajorFunction,
+                   ParameterSnapshot->MinorFunction,
+                   FltGetIrpName(ParameterSnapshot->MajorFunction)) );
 }
 
 
-
-
 FLT_POSTOP_CALLBACK_STATUS
-PtPostOperationPassThrough(
+PtPostOperationPassThrough (
     _Inout_ PFLT_CALLBACK_DATA Data,
     _In_ PCFLT_RELATED_OBJECTS FltObjects,
     _In_opt_ PVOID CompletionContext,
     _In_ FLT_POST_OPERATION_FLAGS Flags
-)
+    )
+/*++
+
+Routine Description:
+
+    This routine is the post-operation completion routine for this
+    miniFilter.
+
+    This is non-pageable because it may be called at DPC level.
+
+Arguments:
+
+    Data - Pointer to the filter callbackData that is passed to us.
+
+    FltObjects - Pointer to the FLT_RELATED_OBJECTS data structure containing
+        opaque handles to this filter, instance, its associated volume and
+        file object.
+
+    CompletionContext - The completion context set in the pre-operation routine.
+
+    Flags - Denotes whether the completion is successful or is being drained.
+
+Return Value:
+
+    The return value is the status of the operation.
+
+--*/
 {
-    // !!!
-    UNREFERENCED_PARAMETER(FltObjects);
-    UNREFERENCED_PARAMETER(CompletionContext);
-    UNREFERENCED_PARAMETER(Flags);
-    // !!!
+    // ЛР2: Data используется ниже, поэтому UNREFERENCED_PARAMETER(Data) закомментирован.
+    //UNREFERENCED_PARAMETER( Data );
+    UNREFERENCED_PARAMETER( FltObjects );
+    UNREFERENCED_PARAMETER( CompletionContext );
+    UNREFERENCED_PARAMETER( Flags );
 
+    PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,
+                  ("PassThrough!PtPostOperationPassThrough: Entered\n") );
 
-    PFLT_FILE_NAME_INFORMATION nameInfo = NULL;
-    NTSTATUS status;
-    const UNICODE_STRING required_extension = RTL_CONSTANT_STRING(L"lab2ext");
+    //
+    // ЛР2. Прозрачная расшифровка при ЧТЕНИИ.
+    // Пост-операция вызывается уже после того, как нижележащий драйвер поместил
+    // прочитанные (зашифрованные) данные в буфер пользователя. Если это чтение
+    // файла с нашим расширением — расшифровываем буфер на месте, и вызывающее
+    // приложение получает открытый текст, тогда как на диске файл остаётся
+    // зашифрованным.
+    //
+    if (NT_SUCCESS( Data->IoStatus.Status ) &&
+        Data->Iopb->MajorFunction == IRP_MJ_READ &&
+        Lab2IsTargetFile( Data )) {
 
+        PUCHAR readBuffer = Data->Iopb->Parameters.Read.ReadBuffer;
+        ULONG  bytesRead  = (ULONG)Data->IoStatus.Information;   // сколько реально прочитано
 
-    __try {
-
-
-        status = FltGetFileNameInformation(
-            Data,
-            FLT_FILE_NAME_NORMALIZED |
-            FLT_FILE_NAME_QUERY_DEFAULT,
-            &nameInfo);
-        if (!NT_SUCCESS(status)) {
-            __leave;
-        }
-
-
-        status = FltParseFileNameInformation(nameInfo);
-        if (!NT_SUCCESS(status)) { // Stop processing when parsing fails.
-            __leave;
-        }
-
-
-        if (RtlEqualUnicodeString(
-            &required_extension,
-            &(nameInfo->Extension),
-            FALSE)) // case sensitive
-        {
-            DbgPrint("*** Lab2: Extension matched!");
-            if (Data->Iopb->MajorFunction == IRP_MJ_READ) {
-                DbgPrint("*** Lab2: IRP_MJ_READ!");
-
-                if (!NT_SUCCESS(Data->IoStatus.Status) ||
-                    Data->Iopb->Parameters.Read.ReadBuffer == NULL ||
-                    Data->IoStatus.Information == 0 ||
-                    (Data->IoStatus.Information % AES_BLOCKLEN) != 0) {
-                    DbgPrint("*** Lab2: skipped READ: failed I/O, null buffer, or non-aligned length");
-                    __leave;
-                }
-                __try {
-                    struct AES_ctx ctx;
-
-                    uint8_t Aes256iv[] = {
-                        0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
-                        0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F };
-                    const uint8_t Aes256Key[] = {
-                        0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
-                        0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F,
-                        0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
-                        0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F };
-
-                    AES_init_ctx_iv(&ctx, Aes256Key, Aes256iv);
-                    AES_CBC_decrypt_buffer(&ctx,
-                        Data->Iopb->Parameters.Read.ReadBuffer,
-                        (size_t)Data->IoStatus.Information);
-
-                }
-                __except (EXCEPTION_EXECUTE_HANDLER) {
-                    __leave;
-                }
-            }
+        DbgPrint( "*** Lab2: IRP_MJ_READ matched, decrypting %lu bytes\n", bytesRead );
+        if (readBuffer != NULL && bytesRead >= AES_BLOCKLEN) {
+            Lab2CryptBuffer( readBuffer, bytesRead, FALSE /* decrypt */ );
         }
     }
-    __finally {
-        // Release name information on every exit path.
-        if (nameInfo != NULL) {
-            FltReleaseFileNameInformation(nameInfo);
-            nameInfo = NULL;
-        }
-    }
+
     return FLT_POSTOP_FINISHED_PROCESSING;
 }
 
 
-
 FLT_PREOP_CALLBACK_STATUS
-PtPreOperationNoPostOperationPassThrough(
+PtPreOperationNoPostOperationPassThrough (
     _Inout_ PFLT_CALLBACK_DATA Data,
     _In_ PCFLT_RELATED_OBJECTS FltObjects,
-    _Flt_CompletionContext_Outptr_ PVOID* CompletionContext
-)
+    _Flt_CompletionContext_Outptr_ PVOID *CompletionContext
+    )
 /*++
 
 Routine Description:
@@ -890,12 +946,12 @@ Return Value:
 
 --*/
 {
-    UNREFERENCED_PARAMETER(Data);
-    UNREFERENCED_PARAMETER(FltObjects);
-    UNREFERENCED_PARAMETER(CompletionContext);
+    UNREFERENCED_PARAMETER( Data );
+    UNREFERENCED_PARAMETER( FltObjects );
+    UNREFERENCED_PARAMETER( CompletionContext );
 
-    PT_DBG_PRINT(PTDBG_TRACE_ROUTINES,
-        ("PassThrough!PtPreOperationNoPostOperationPassThrough: Entered\n"));
+    PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,
+                  ("PassThrough!PtPreOperationNoPostOperationPassThrough: Entered\n") );
 
     return FLT_PREOP_SUCCESS_NO_CALLBACK;
 }
@@ -904,7 +960,7 @@ Return Value:
 BOOLEAN
 PtDoRequestOperationStatus(
     _In_ PFLT_CALLBACK_DATA Data
-)
+    )
 /*++
 
 Routine Description:
@@ -930,24 +986,24 @@ Return Value:
 
     return (BOOLEAN)
 
-        //
-        //  Check for oplock operations
-        //
+            //
+            //  Check for oplock operations
+            //
 
-        (((iopb->MajorFunction == IRP_MJ_FILE_SYSTEM_CONTROL) &&
-            ((iopb->Parameters.FileSystemControl.Common.FsControlCode == FSCTL_REQUEST_FILTER_OPLOCK) ||
-                (iopb->Parameters.FileSystemControl.Common.FsControlCode == FSCTL_REQUEST_BATCH_OPLOCK) ||
+             (((iopb->MajorFunction == IRP_MJ_FILE_SYSTEM_CONTROL) &&
+               ((iopb->Parameters.FileSystemControl.Common.FsControlCode == FSCTL_REQUEST_FILTER_OPLOCK)  ||
+                (iopb->Parameters.FileSystemControl.Common.FsControlCode == FSCTL_REQUEST_BATCH_OPLOCK)   ||
                 (iopb->Parameters.FileSystemControl.Common.FsControlCode == FSCTL_REQUEST_OPLOCK_LEVEL_1) ||
                 (iopb->Parameters.FileSystemControl.Common.FsControlCode == FSCTL_REQUEST_OPLOCK_LEVEL_2)))
 
-            ||
+              ||
 
-            //
-            //    Check for directy change notification
-            //
+              //
+              //    Check for directy change notification
+              //
 
-            ((iopb->MajorFunction == IRP_MJ_DIRECTORY_CONTROL) &&
-                (iopb->MinorFunction == IRP_MN_NOTIFY_CHANGE_DIRECTORY))
-            );
+              ((iopb->MajorFunction == IRP_MJ_DIRECTORY_CONTROL) &&
+               (iopb->MinorFunction == IRP_MN_NOTIFY_CHANGE_DIRECTORY))
+             );
 }
 
