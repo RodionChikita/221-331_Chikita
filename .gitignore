@@ -44,6 +44,30 @@ __pycache__/
 # Credentials plaintext (never commit!)
 credentials_plain.json
 
+# Visual Studio (ЛР2, ЛР3)
+.vs/
+x64/
+Win32/
+Debug/
+Release/
+Simulation/
+*.vcxproj.user
+*.suo
+*.sln.docstates
+packages/
+
+# Kernel driver build artifacts (ЛР2)
+*.sys
+*.cat
+*.cer
+*.aps
+
+# Intel SGX generated/sensitive files (ЛР3)
+*.pem
+*.signed.dll
+Enclave_u.*
+Enclave_t.*
+
 # OS files
 .DS_Store
 Thumbs.db
