@@ -38,19 +38,19 @@ static int write_fixed(const char *path, const char *text)
     strncpy((char *)buffer, text, sizeof(buffer) - 1);
 
     if (fopen_s(&f, path, "wb") != 0 || f == NULL) {
-        printf("[test] не удалось открыть '%s' для записи\n", path);
+        printf("[test] failed to open '%s' for writing\n", path);
         return 1;
     }
 
     /* Запись всего буфера за один вызов — сработает PtPreOperationPassThrough (IRP_MJ_WRITE). */
     if (fwrite(buffer, 1, sizeof(buffer), f) != sizeof(buffer)) {
-        printf("[test] ошибка записи\n");
+        printf("[test] write error\n");
         fclose(f);
         return 1;
     }
 
     fclose(f);
-    printf("[test] записано %d байт в '%s'\n", BUFFER_SIZE, path);
+    printf("[test] wrote %d bytes to '%s'\n", BUFFER_SIZE, path);
     return 0;
 }
 
@@ -63,7 +63,7 @@ static int read_fixed(const char *path)
     size_t i;
 
     if (fopen_s(&f, path, "rb") != 0 || f == NULL) {
-        printf("[test] не удалось открыть '%s' для чтения\n", path);
+        printf("[test] failed to open '%s' for reading\n", path);
         return 1;
     }
 
@@ -73,10 +73,10 @@ static int read_fixed(const char *path)
     got = fread(buffer, 1, sizeof(buffer), f);
     fclose(f);
 
-    printf("[test] прочитано %zu байт из '%s'\n", got, path);
+    printf("[test] read %zu bytes from '%s'\n", got, path);
 
     /* Текстовое представление (то, что видит пользователь). */
-    printf("[test] как текст : \"");
+    printf("[test] as text : \"");
     for (i = 0; i < got; ++i) {
         unsigned char c = buffer[i];
         putchar((c >= 32 && c < 127) ? c : '.');
@@ -84,7 +84,7 @@ static int read_fixed(const char *path)
     printf("\"\n");
 
     /* Шестнадцатеричное представление первых 32 байт (видно, зашифровано ли на диске). */
-    printf("[test] как hex   : ");
+    printf("[test] as hex  : ");
     for (i = 0; i < got && i < 32; ++i) {
         printf("%02X ", buffer[i]);
     }
@@ -101,8 +101,8 @@ int main(int argc, char **argv)
         return read_fixed(argv[2]);
     }
 
-    printf("Использование:\n");
-    printf("  %s write <файл> <текст>   — записать (драйвер зашифрует на диске)\n", argv[0]);
-    printf("  %s read  <файл>           — прочитать (драйвер расшифрует в буфер)\n", argv[0]);
+    printf("Usage:\n");
+    printf("  %s write <file> <text>   -- write (driver encrypts on disk)\n", argv[0]);
+    printf("  %s read  <file>          -- read (driver decrypts into buffer)\n", argv[0]);
     return 1;
 }
