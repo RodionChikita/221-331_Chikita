@@ -14,8 +14,13 @@
 #include "Enclave_t.h"   // автогенерируется sgx_edger8r из Enclave.edl
 #include <string.h>
 
-/* Защищённая таблица данных. Имитирует массив учётных записей. */
-static const char* const g_records[] = {
+/* Защищённая таблица данных. Имитирует массив учётных записей.
+   Теперь это изменяемый буфер фиксированной ёмкости (не const), чтобы
+   ecall_add_record() мог дописывать новые записи ВНУТРИ анклава. */
+#define MAX_RECORDS 32
+#define RECORD_MAX_LEN 128
+
+static char g_records[MAX_RECORDS][RECORD_MAX_LEN] = {
     "github.com | rodion | S3cr3t!github",
     "gitlab.com | rodion | gl_p@ss_2026",
     "mospolytech.ru | chikita | study#2026",
@@ -23,12 +28,35 @@ static const char* const g_records[] = {
     "yandex.ru | chikita.r | y@ndex!key",
 };
 
-static const int g_record_count = (int)(sizeof(g_records) / sizeof(g_records[0]));
+static int g_record_count = 5;   /* число изначально заполненных строк выше */
 
-/* Возвращает количество записей в таблице. */
+/* Возвращает количество записей в таблице (включая добавленные позже). */
 int ecall_get_count(void)
 {
     return g_record_count;
+}
+
+/*
+ * Добавляет новую запись в конец таблицы. Строка text пришла снаружи анклава
+ * (untrusted), копируется во внутренний (trusted) буфер g_records — с этого
+ * момента она защищена так же, как и исходные записи.
+ * Возвращает индекс новой записи, либо -1, если таблица заполнена.
+ */
+int ecall_add_record(const char* text)
+{
+    if (g_record_count >= MAX_RECORDS || text == NULL) {
+        return -1;
+    }
+
+    size_t len = strlen(text);
+    if (len >= RECORD_MAX_LEN) {
+        len = RECORD_MAX_LEN - 1;
+    }
+
+    memcpy(g_records[g_record_count], text, len);
+    g_records[g_record_count][len] = '\0';
+
+    return g_record_count++;
 }
 
 /*
