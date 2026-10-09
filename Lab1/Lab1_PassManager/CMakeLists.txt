@@ -109,3 +109,9 @@ if(WIN32)
             COMMENT "Копирование libcrypto рядом с exe")
     endif()
 endif()
+
+# Зашифрованный файл данных (PIN 1234) — рядом с exe, оттуда его читает программа
+add_custom_command(TARGET Lab1_PassManager POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${CMAKE_CURRENT_SOURCE_DIR}/credentials.json.enc" "$<TARGET_FILE_DIR:Lab1_PassManager>"
+    COMMENT "Копирование credentials.json.enc рядом с exe")

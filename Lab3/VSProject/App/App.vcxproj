@@ -53,7 +53,7 @@
   <PropertyGroup Label="Globals">
     <ProjectGuid>{5E2BE354-81F3-4F99-A28B-9E77F6492344}</ProjectGuid>
     <RootNamespace>App</RootNamespace>
-    <WindowsTargetPlatformVersion>10.0.18362.0</WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformVersion>10.0.19041.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
@@ -519,4 +519,11 @@
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
+  <!-- Simulation: кладём симуляционные DLL SGX рядом с App.exe, чтобы он запускался сразу после сборки -->
+  <Target Name="CopySgxSimDlls" AfterTargets="Build" Condition="'$(Configuration)'=='Simulation'">
+    <ItemGroup>
+      <SgxSimDll Include="$(SGXSDKInstallPath)bin\$(Platform)\Release\sgx_*_sim*.dll" />
+    </ItemGroup>
+    <Copy SourceFiles="@(SgxSimDll)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" />
+  </Target>
 </Project>

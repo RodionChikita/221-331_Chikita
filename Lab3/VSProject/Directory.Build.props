@@ -1,0 +1,7 @@
+<Project>
+  <!-- Путь к Intel SGX SDK по умолчанию, если переменная окружения SGXSDKInstallPath не задана.
+       Чтобы использовать другой SDK, задайте переменную окружения до запуска Visual Studio. -->
+  <PropertyGroup Condition="'$(SGXSDKInstallPath)' == '' And Exists('$(USERPROFILE)\sgxpkg\build\native\bin')">
+    <SGXSDKInstallPath>$(USERPROFILE)\sgxpkg\build\native\</SGXSDKInstallPath>
+  </PropertyGroup>
+</Project>
