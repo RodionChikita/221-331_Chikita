@@ -29,7 +29,6 @@ private slots:
     void onFilterChanged(const QString &text);
     void onCopyLogin();
     void onCopyPassword();
-    void onShowSelected();
 
 private:
     void populateTable(const QString &filter = QString());
@@ -39,10 +38,9 @@ private:
     QTableWidget *table_;
     QPushButton *copyLoginBtn_;
     QPushButton *copyPasswordBtn_;
-    QPushButton *showBtn_;
     QPushButton *logoutBtn_;
 
     QVector<Credential> credentials_;
 };
 
-#endif // CREDENTIALSWINDOW_H
+#endif

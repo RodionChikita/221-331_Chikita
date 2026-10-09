@@ -9,8 +9,6 @@
 typedef quint64 QWORD;
 #endif
 
-// Reference hash — must be updated after final release build.
-// Build once -> read hash from debug output -> paste here -> rebuild.
 static const QByteArray REFERENCE_HASH_BASE64 =
     QByteArray("PLACEHOLDER_HASH_UPDATE_AFTER_BUILD");
 
@@ -62,4 +60,4 @@ bool verify()
 #endif
 }
 
-} // namespace IntegrityCheck
+}

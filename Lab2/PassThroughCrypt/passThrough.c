@@ -1,54 +1,21 @@
-/*++
-
-Copyright (c) 1999 - 2002  Microsoft Corporation
-
-Module Name:
-
-    passThrough.c
-
-Abstract:
-
-    This is the main module of the passThrough miniFilter driver.
-    This filter hooks all IO operations for both pre and post operation
-    callbacks.  The filter passes through the operations.
-
-Environment:
-
-    Kernel mode
-
---*/
-
 #include <fltKernel.h>
 #include <dontuse.h>
 #include <suppress.h>
-#include "aes.h"                 // ЛР2: header-only реализация AES (tiny-AES-c), включён режим AES-256
+#include "aes.h"
 
 #pragma prefast(disable:__WARNING_ENCODE_MEMBER_FUNCTION_POINTER, "Not valid for kernel mode drivers")
 
-//
-// ЛР2. Параметры прозрачного шифрования.
-// Драйвер-фильтр шифрует только файлы с расширением LAB2_EXTENSION, остальные
-// проходят без изменений. Ключ и IV зашиты константами (условность лабораторной
-// работы; в доп. задании ключ передаётся драйверу из клиентского приложения).
-//
-#define LAB2_EXTENSION   L"lab2ext"   // признак, по которому срабатывает шифрование
+#define LAB2_EXTENSION   L"lab2ext"
 
-// 32-байтный ключ AES-256 (условность: постоянный ключ, зашитый в драйвере)
 static const UCHAR gLab2Key[32] = {
     0x60,0x3d,0xeb,0x10,0x15,0xca,0x71,0xbe, 0x2b,0x73,0xae,0xf0,0x85,0x7d,0x77,0x81,
     0x1f,0x35,0x2c,0x07,0x3b,0x61,0x08,0xd7, 0x2d,0x98,0x10,0xa3,0x09,0x14,0xdf,0xf4
 };
-// 16-байтный вектор инициализации для режима CBC
+
 static const UCHAR gLab2Iv[16] = {
     0x00,0x01,0x02,0x03,0x04,0x05,0x06,0x07, 0x08,0x09,0x0a,0x0b,0x0c,0x0d,0x0e,0x0f
 };
 
-//
-// Lab2IsTargetFile — возвращает TRUE, если расширение обрабатываемого файла
-// совпадает с LAB2_EXTENSION. Имя файла извлекается и разбирается стандартными
-// функциями FltGetFileNameInformation/FltParseFileNameInformation; выделенная
-// под имя память обязательно освобождается в этой же функции.
-//
 static BOOLEAN
 Lab2IsTargetFile (
     _Inout_ PFLT_CALLBACK_DATA Data
@@ -72,17 +39,10 @@ Lab2IsTargetFile (
         matched = RtlEqualUnicodeString( &required, &nameInfo->Extension, FALSE );
     }
 
-    FltReleaseFileNameInformation( nameInfo );   // обязательная очистка памяти
+    FltReleaseFileNameInformation( nameInfo );
     return matched;
 }
 
-//
-// Lab2CryptBuffer — шифрует (при записи) или расшифровывает (при чтении)
-// пользовательский буфер фиксированного размера на месте, по алгоритму AES-256-CBC.
-// Для режима CBC длина буфера должна быть кратна 16 байтам; остаток (хвост,
-// не укладывающийся в блок) оставляется без изменений — это допущение лабораторной
-// работы (фиксированный размер файла, кратный блоку).
-//
 static VOID
 Lab2CryptBuffer (
     _Inout_updates_bytes_(length) PUCHAR buffer,
@@ -91,7 +51,7 @@ Lab2CryptBuffer (
     )
 {
     struct AES_ctx ctx;
-    ULONG blocks = length / AES_BLOCKLEN;   // число полных 16-байтных блоков
+    ULONG blocks = length / AES_BLOCKLEN;
 
     if (buffer == NULL || blocks == 0) {
         return;
@@ -106,7 +66,6 @@ Lab2CryptBuffer (
     }
 }
 
-
 PFLT_FILTER gFilterHandle;
 ULONG_PTR OperationStatusCtx = 1;
 
@@ -115,15 +74,10 @@ ULONG_PTR OperationStatusCtx = 1;
 
 ULONG gTraceFlags = 0;
 
-
 #define PT_DBG_PRINT( _dbgLevel, _string )          \
     (FlagOn(gTraceFlags,(_dbgLevel)) ?              \
         DbgPrint _string :                          \
         ((int)0))
-
-/*************************************************************************
-    Prototypes
-*************************************************************************/
 
 DRIVER_INITIALIZE DriverEntry;
 NTSTATUS
@@ -198,10 +152,6 @@ PtDoRequestOperationStatus(
     _In_ PFLT_CALLBACK_DATA Data
     );
 
-//
-//  Assign text sections for each routine.
-//
-
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(INIT, DriverEntry)
 #pragma alloc_text(PAGE, PtUnload)
@@ -210,10 +160,6 @@ PtDoRequestOperationStatus(
 #pragma alloc_text(PAGE, PtInstanceTeardownStart)
 #pragma alloc_text(PAGE, PtInstanceTeardownComplete)
 #endif
-
-//
-//  operation registration
-//
 
 CONST FLT_OPERATION_REGISTRATION Callbacks[] = {
     { IRP_MJ_CREATE,
@@ -299,7 +245,7 @@ CONST FLT_OPERATION_REGISTRATION Callbacks[] = {
     { IRP_MJ_SHUTDOWN,
       0,
       PtPreOperationNoPostOperationPassThrough,
-      NULL },                               //post operations not supported
+      NULL },
 
     { IRP_MJ_LOCK_CONTROL,
       0,
@@ -414,33 +360,27 @@ CONST FLT_OPERATION_REGISTRATION Callbacks[] = {
     { IRP_MJ_OPERATION_END }
 };
 
-//
-//  This defines what we want to filter with FltMgr
-//
-
 CONST FLT_REGISTRATION FilterRegistration = {
 
-    sizeof( FLT_REGISTRATION ),         //  Size
-    FLT_REGISTRATION_VERSION,           //  Version
-    0,                                  //  Flags
+    sizeof( FLT_REGISTRATION ),
+    FLT_REGISTRATION_VERSION,
+    0,
 
-    NULL,                               //  Context
-    Callbacks,                          //  Operation callbacks
+    NULL,
+    Callbacks,
 
-    PtUnload,                           //  MiniFilterUnload
+    PtUnload,
 
-    PtInstanceSetup,                    //  InstanceSetup
-    PtInstanceQueryTeardown,            //  InstanceQueryTeardown
-    PtInstanceTeardownStart,            //  InstanceTeardownStart
-    PtInstanceTeardownComplete,         //  InstanceTeardownComplete
+    PtInstanceSetup,
+    PtInstanceQueryTeardown,
+    PtInstanceTeardownStart,
+    PtInstanceTeardownComplete,
 
-    NULL,                               //  GenerateFileName
-    NULL,                               //  GenerateDestinationFileName
-    NULL                                //  NormalizeNameComponent
+    NULL,
+    NULL,
+    NULL
 
 };
-
-
 
 NTSTATUS
 PtInstanceSetup (
@@ -449,29 +389,7 @@ PtInstanceSetup (
     _In_ DEVICE_TYPE VolumeDeviceType,
     _In_ FLT_FILESYSTEM_TYPE VolumeFilesystemType
     )
-/*++
 
-Routine Description:
-
-    This routine is called whenever a new instance is created on a volume. This
-    gives us a chance to decide if we need to attach to this volume or not.
-
-    If this routine is not defined in the registration structure, automatic
-    instances are alwasys created.
-
-Arguments:
-
-    FltObjects - Pointer to the FLT_RELATED_OBJECTS data structure containing
-        opaque handles to this filter, instance and its associated volume.
-
-    Flags - Flags describing the reason for this attach request.
-
-Return Value:
-
-    STATUS_SUCCESS - attach
-    STATUS_FLT_DO_NOT_ATTACH - do not attach
-
---*/
 {
     UNREFERENCED_PARAMETER( FltObjects );
     UNREFERENCED_PARAMETER( Flags );
@@ -486,36 +404,12 @@ Return Value:
     return STATUS_SUCCESS;
 }
 
-
 NTSTATUS
 PtInstanceQueryTeardown (
     _In_ PCFLT_RELATED_OBJECTS FltObjects,
     _In_ FLT_INSTANCE_QUERY_TEARDOWN_FLAGS Flags
     )
-/*++
 
-Routine Description:
-
-    This is called when an instance is being manually deleted by a
-    call to FltDetachVolume or FilterDetach thereby giving us a
-    chance to fail that detach request.
-
-    If this routine is not defined in the registration structure, explicit
-    detach requests via FltDetachVolume or FilterDetach will always be
-    failed.
-
-Arguments:
-
-    FltObjects - Pointer to the FLT_RELATED_OBJECTS data structure containing
-        opaque handles to this filter, instance and its associated volume.
-
-    Flags - Indicating where this detach request came from.
-
-Return Value:
-
-    Returns the status of this operation.
-
---*/
 {
     UNREFERENCED_PARAMETER( FltObjects );
     UNREFERENCED_PARAMETER( Flags );
@@ -528,30 +422,12 @@ Return Value:
     return STATUS_SUCCESS;
 }
 
-
 VOID
 PtInstanceTeardownStart (
     _In_ PCFLT_RELATED_OBJECTS FltObjects,
     _In_ FLT_INSTANCE_TEARDOWN_FLAGS Flags
     )
-/*++
 
-Routine Description:
-
-    This routine is called at the start of instance teardown.
-
-Arguments:
-
-    FltObjects - Pointer to the FLT_RELATED_OBJECTS data structure containing
-        opaque handles to this filter, instance and its associated volume.
-
-    Flags - Reason why this instance is been deleted.
-
-Return Value:
-
-    None.
-
---*/
 {
     UNREFERENCED_PARAMETER( FltObjects );
     UNREFERENCED_PARAMETER( Flags );
@@ -562,30 +438,12 @@ Return Value:
                   ("PassThrough!PtInstanceTeardownStart: Entered\n") );
 }
 
-
 VOID
 PtInstanceTeardownComplete (
     _In_ PCFLT_RELATED_OBJECTS FltObjects,
     _In_ FLT_INSTANCE_TEARDOWN_FLAGS Flags
     )
-/*++
 
-Routine Description:
-
-    This routine is called at the end of instance teardown.
-
-Arguments:
-
-    FltObjects - Pointer to the FLT_RELATED_OBJECTS data structure containing
-        opaque handles to this filter, instance and its associated volume.
-
-    Flags - Reason why this instance is been deleted.
-
-Return Value:
-
-    None.
-
---*/
 {
     UNREFERENCED_PARAMETER( FltObjects );
     UNREFERENCED_PARAMETER( Flags );
@@ -596,36 +454,12 @@ Return Value:
                   ("PassThrough!PtInstanceTeardownComplete: Entered\n") );
 }
 
-
-/*************************************************************************
-    MiniFilter initialization and unload routines.
-*************************************************************************/
-
 NTSTATUS
 DriverEntry (
     _In_ PDRIVER_OBJECT DriverObject,
     _In_ PUNICODE_STRING RegistryPath
     )
-/*++
 
-Routine Description:
-
-    This is the initialization routine for this miniFilter driver.  This
-    registers with FltMgr and initializes all global data structures.
-
-Arguments:
-
-    DriverObject - Pointer to driver object created by the system to
-        represent this driver.
-
-    RegistryPath - Unicode string identifying where the parameters for this
-        driver are located in the registry.
-
-Return Value:
-
-    Returns STATUS_SUCCESS.
-
---*/
 {
     NTSTATUS status;
 
@@ -634,10 +468,6 @@ Return Value:
     PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,
                   ("PassThrough!DriverEntry: Entered\n") );
 
-    //
-    //  Register with FltMgr to tell it our callback routines
-    //
-
     status = FltRegisterFilter( DriverObject,
                                 &FilterRegistration,
                                 &gFilterHandle );
@@ -645,10 +475,6 @@ Return Value:
     FLT_ASSERT( NT_SUCCESS( status ) );
 
     if (NT_SUCCESS( status )) {
-
-        //
-        //  Start filtering i/o
-        //
 
         status = FltStartFiltering( gFilterHandle );
 
@@ -665,24 +491,7 @@ NTSTATUS
 PtUnload (
     _In_ FLT_FILTER_UNLOAD_FLAGS Flags
     )
-/*++
 
-Routine Description:
-
-    This is the unload routine for this miniFilter driver. This is called
-    when the minifilter is about to be unloaded. We can fail this unload
-    request if this is not a mandatory unloaded indicated by the Flags
-    parameter.
-
-Arguments:
-
-    Flags - Indicating if this is a mandatory unload.
-
-Return Value:
-
-    Returns the final status of this operation.
-
---*/
 {
     UNREFERENCED_PARAMETER( Flags );
 
@@ -696,44 +505,13 @@ Return Value:
     return STATUS_SUCCESS;
 }
 
-
-/*************************************************************************
-    MiniFilter callback routines.
-*************************************************************************/
 FLT_PREOP_CALLBACK_STATUS
 PtPreOperationPassThrough (
     _Inout_ PFLT_CALLBACK_DATA Data,
     _In_ PCFLT_RELATED_OBJECTS FltObjects,
     _Flt_CompletionContext_Outptr_ PVOID *CompletionContext
     )
-/*++
 
-Routine Description:
-
-    This routine is the main pre-operation dispatch routine for this
-    miniFilter. Since this is just a simple passThrough miniFilter it
-    does not do anything with the callbackData but rather return
-    FLT_PREOP_SUCCESS_WITH_CALLBACK thereby passing it down to the next
-    miniFilter in the chain.
-
-    This is non-pageable because it could be called on the paging path
-
-Arguments:
-
-    Data - Pointer to the filter callbackData that is passed to us.
-
-    FltObjects - Pointer to the FLT_RELATED_OBJECTS data structure containing
-        opaque handles to this filter, instance, its associated volume and
-        file object.
-
-    CompletionContext - The context for the completion routine for this
-        operation.
-
-Return Value:
-
-    The return value is the status of the operation.
-
---*/
 {
     NTSTATUS status;
 
@@ -742,15 +520,6 @@ Return Value:
 
     PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,
                   ("PassThrough!PtPreOperationPassThrough: Entered\n") );
-
-    //
-    //  See if this is an operation we would like the operation status
-    //  for.  If so request it.
-    //
-    //  NOTE: most filters do NOT need to do this.  You only need to make
-    //        this call if, for example, you need to know if the oplock was
-    //        actually granted.
-    //
 
     if (PtDoRequestOperationStatus( Data )) {
 
@@ -765,12 +534,6 @@ Return Value:
         }
     }
 
-    //
-    // ЛР2. Прозрачное шифрование при ЗАПИСИ.
-    // Если это операция записи в файл с нашим расширением — шифруем буфер
-    // пользователя на месте до того, как он будет передан нижележащему драйверу
-    // и записан на диск. Остальные операции проходят без изменений.
-    //
     if (Data->Iopb->MajorFunction == IRP_MJ_WRITE &&
         Lab2IsTargetFile( Data )) {
 
@@ -779,14 +542,12 @@ Return Value:
 
         DbgPrint( "*** Lab2: IRP_MJ_WRITE matched, encrypting %lu bytes\n", writeLength );
         if (writeBuffer != NULL && writeLength >= AES_BLOCKLEN) {
-            Lab2CryptBuffer( writeBuffer, writeLength, TRUE /* encrypt */ );
+            Lab2CryptBuffer( writeBuffer, writeLength, TRUE  );
         }
     }
 
     return FLT_PREOP_SUCCESS_WITH_CALLBACK;
 }
-
-
 
 VOID
 PtOperationStatusCallback (
@@ -795,38 +556,7 @@ PtOperationStatusCallback (
     _In_ NTSTATUS OperationStatus,
     _In_ PVOID RequesterContext
     )
-/*++
 
-Routine Description:
-
-    This routine is called when the given operation returns from the call
-    to IoCallDriver.  This is useful for operations where STATUS_PENDING
-    means the operation was successfully queued.  This is useful for OpLocks
-    and directory change notification operations.
-
-    This callback is called in the context of the originating thread and will
-    never be called at DPC level.  The file object has been correctly
-    referenced so that you can access it.  It will be automatically
-    dereferenced upon return.
-
-    This is non-pageable because it could be called on the paging path
-
-Arguments:
-
-    FltObjects - Pointer to the FLT_RELATED_OBJECTS data structure containing
-        opaque handles to this filter, instance, its associated volume and
-        file object.
-
-    RequesterContext - The context for the completion routine for this
-        operation.
-
-    OperationStatus -
-
-Return Value:
-
-    The return value is the status of the operation.
-
---*/
 {
     UNREFERENCED_PARAMETER( FltObjects );
 
@@ -842,7 +572,6 @@ Return Value:
                    FltGetIrpName(ParameterSnapshot->MajorFunction)) );
 }
 
-
 FLT_POSTOP_CALLBACK_STATUS
 PtPostOperationPassThrough (
     _Inout_ PFLT_CALLBACK_DATA Data,
@@ -850,35 +579,9 @@ PtPostOperationPassThrough (
     _In_opt_ PVOID CompletionContext,
     _In_ FLT_POST_OPERATION_FLAGS Flags
     )
-/*++
 
-Routine Description:
-
-    This routine is the post-operation completion routine for this
-    miniFilter.
-
-    This is non-pageable because it may be called at DPC level.
-
-Arguments:
-
-    Data - Pointer to the filter callbackData that is passed to us.
-
-    FltObjects - Pointer to the FLT_RELATED_OBJECTS data structure containing
-        opaque handles to this filter, instance, its associated volume and
-        file object.
-
-    CompletionContext - The completion context set in the pre-operation routine.
-
-    Flags - Denotes whether the completion is successful or is being drained.
-
-Return Value:
-
-    The return value is the status of the operation.
-
---*/
 {
-    // ЛР2: Data используется ниже, поэтому UNREFERENCED_PARAMETER(Data) закомментирован.
-    //UNREFERENCED_PARAMETER( Data );
+
     UNREFERENCED_PARAMETER( FltObjects );
     UNREFERENCED_PARAMETER( CompletionContext );
     UNREFERENCED_PARAMETER( Flags );
@@ -886,30 +589,21 @@ Return Value:
     PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,
                   ("PassThrough!PtPostOperationPassThrough: Entered\n") );
 
-    //
-    // ЛР2. Прозрачная расшифровка при ЧТЕНИИ.
-    // Пост-операция вызывается уже после того, как нижележащий драйвер поместил
-    // прочитанные (зашифрованные) данные в буфер пользователя. Если это чтение
-    // файла с нашим расширением — расшифровываем буфер на месте, и вызывающее
-    // приложение получает открытый текст, тогда как на диске файл остаётся
-    // зашифрованным.
-    //
     if (NT_SUCCESS( Data->IoStatus.Status ) &&
         Data->Iopb->MajorFunction == IRP_MJ_READ &&
         Lab2IsTargetFile( Data )) {
 
         PUCHAR readBuffer = Data->Iopb->Parameters.Read.ReadBuffer;
-        ULONG  bytesRead  = (ULONG)Data->IoStatus.Information;   // сколько реально прочитано
+        ULONG  bytesRead  = (ULONG)Data->IoStatus.Information;
 
         DbgPrint( "*** Lab2: IRP_MJ_READ matched, decrypting %lu bytes\n", bytesRead );
         if (readBuffer != NULL && bytesRead >= AES_BLOCKLEN) {
-            Lab2CryptBuffer( readBuffer, bytesRead, FALSE /* decrypt */ );
+            Lab2CryptBuffer( readBuffer, bytesRead, FALSE  );
         }
     }
 
     return FLT_POSTOP_FINISHED_PROCESSING;
 }
-
 
 FLT_PREOP_CALLBACK_STATUS
 PtPreOperationNoPostOperationPassThrough (
@@ -917,34 +611,7 @@ PtPreOperationNoPostOperationPassThrough (
     _In_ PCFLT_RELATED_OBJECTS FltObjects,
     _Flt_CompletionContext_Outptr_ PVOID *CompletionContext
     )
-/*++
 
-Routine Description:
-
-    This routine is the main pre-operation dispatch routine for this
-    miniFilter. Since this is just a simple passThrough miniFilter it
-    does not do anything with the callbackData but rather return
-    FLT_PREOP_SUCCESS_WITH_CALLBACK thereby passing it down to the next
-    miniFilter in the chain.
-
-    This is non-pageable because it could be called on the paging path
-
-Arguments:
-
-    Data - Pointer to the filter callbackData that is passed to us.
-
-    FltObjects - Pointer to the FLT_RELATED_OBJECTS data structure containing
-        opaque handles to this filter, instance, its associated volume and
-        file object.
-
-    CompletionContext - The context for the completion routine for this
-        operation.
-
-Return Value:
-
-    The return value is the status of the operation.
-
---*/
 {
     UNREFERENCED_PARAMETER( Data );
     UNREFERENCED_PARAMETER( FltObjects );
@@ -956,39 +623,15 @@ Return Value:
     return FLT_PREOP_SUCCESS_NO_CALLBACK;
 }
 
-
 BOOLEAN
 PtDoRequestOperationStatus(
     _In_ PFLT_CALLBACK_DATA Data
     )
-/*++
 
-Routine Description:
-
-    This identifies those operations we want the operation status for.  These
-    are typically operations that return STATUS_PENDING as a normal completion
-    status.
-
-Arguments:
-
-Return Value:
-
-    TRUE - If we want the operation status
-    FALSE - If we don't
-
---*/
 {
     PFLT_IO_PARAMETER_BLOCK iopb = Data->Iopb;
 
-    //
-    //  return boolean state based on which operations we are interested in
-    //
-
     return (BOOLEAN)
-
-            //
-            //  Check for oplock operations
-            //
 
              (((iopb->MajorFunction == IRP_MJ_FILE_SYSTEM_CONTROL) &&
                ((iopb->Parameters.FileSystemControl.Common.FsControlCode == FSCTL_REQUEST_FILTER_OPLOCK)  ||
@@ -998,12 +641,7 @@ Return Value:
 
               ||
 
-              //
-              //    Check for directy change notification
-              //
-
               ((iopb->MajorFunction == IRP_MJ_DIRECTORY_CONTROL) &&
                (iopb->MinorFunction == IRP_MN_NOTIFY_CHANGE_DIRECTORY))
              );
 }
-

@@ -1,18 +1,7 @@
-/*
- * ЛР3, Этап 1. Незащищённое клиентское приложение (БЕЗ анклава SGX).
- *
- * Это исходная версия приложения до внедрения SGX. Таблица данных и функция
- * запроса находятся прямо в обычной памяти процесса, поэтому данные видны при
- * снятии дампа памяти и в дизассемблере. На этапах 2–3 хранилище и функция
- * переносятся в анклав (см. Enclave/Enclave.cpp и App.cpp).
- *
- * Сборка: cl /EHsc App_step1_unprotected.cpp   (или gcc/g++).
- */
 #define _CRT_SECURE_NO_WARNINGS
 #include <cstdio>
 #include <cstring>
 
-/* Незащищённая таблица данных в обычной памяти процесса. */
 static const char* const g_records[] = {
     "github.com | rodion | S3cr3t!github",
     "gitlab.com | rodion | gl_p@ss_2026",
@@ -22,7 +11,6 @@ static const char* const g_records[] = {
 };
 static const int g_count = (int)(sizeof(g_records) / sizeof(g_records[0]));
 
-/* Печатает запись по введённому индексу или предупреждение, если индекса нет. */
 static void print_record(int index)
 {
     if (index < 0 || index >= g_count) {

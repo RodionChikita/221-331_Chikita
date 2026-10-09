@@ -7,17 +7,14 @@
 #include <openssl/rand.h>
 #include <openssl/err.h>
 
-static const int KEY_LEN = 32;   // AES-256
-static const int IV_LEN  = 16;   // AES block size
+static const int KEY_LEN = 32;
+static const int IV_LEN  = 16;
 static const int PBKDF2_ITERATIONS = 100000;
 
-// Salt used for layer-1 (file decryption) key derivation
 static const QByteArray LAYER1_SALT = QByteArray::fromHex("a1b2c3d4e5f60718");
 
-// Salt used for layer-2 (field-level) key derivation
 static const QByteArray LAYER2_SALT = QByteArray::fromHex("18070605d4c3b2a1");
 
-// Fixed IV for layer-2 field encryption (stored alongside encrypted file)
 static const QByteArray LAYER2_IV = QByteArray::fromHex("00112233445566778899aabbccddeeff");
 
 namespace CryptoUtils {
@@ -210,4 +207,4 @@ QByteArray decryptField(const QByteArray &ciphertext, const QString &pin)
     return decryptAes256Cbc(ciphertext, key, LAYER2_IV);
 }
 
-} // namespace CryptoUtils
+}

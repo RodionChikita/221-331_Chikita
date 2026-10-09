@@ -11,9 +11,6 @@ set "PIN=1234"
 set "OUTPUT_DIR=%~dp0dist"
 set "BUILD_DIR=%~dp0build"
 
-REM ============================================================
-REM  1. Поиск Qt
-REM ============================================================
 echo [1/7] Поиск Qt...
 
 if defined QTDIR if exist "%QTDIR%\bin\qt-cmake.bat" (
@@ -46,9 +43,6 @@ exit /b 1
 set "CMAKE_PREFIX_PATH=!QTDIR!"
 set "PATH=%QTDIR%\bin;%PATH%"
 
-REM ============================================================
-REM  Определяем MinGW или MSVC
-REM ============================================================
 set "USE_MINGW=0"
 echo !QTDIR! | findstr /i "mingw" >nul && set "USE_MINGW=1"
 
@@ -74,9 +68,6 @@ for %%D in (C D E) do (
 
 :skip_mingw_search
 
-REM ============================================================
-REM  2. Поиск OpenSSL
-REM ============================================================
 echo [2/7] Поиск OpenSSL...
 
 if defined OPENSSL_DIR if exist "%OPENSSL_DIR%\include\openssl\evp.h" (
@@ -109,9 +100,6 @@ exit /b 1
 
 :ssl_found
 
-REM ============================================================
-REM  3. Проверка cmake
-REM ============================================================
 echo [3/7] Проверка инструментов...
 
 where cmake >nul 2>&1
@@ -139,9 +127,6 @@ if "!USE_MINGW!"=="1" (
     set "CMAKE_GENERATOR="
 )
 
-REM ============================================================
-REM  4. Шифрование файла данных
-REM ============================================================
 echo [4/7] Подготовка зашифрованного файла данных (PIN=%PIN%)...
 
 cd /d "%~dp0Lab1_PassManager"
@@ -165,9 +150,6 @@ if errorlevel 1 (
 
 :encrypt_done
 
-REM ============================================================
-REM  5. Сборка CMake (оба проекта)
-REM ============================================================
 echo [5/7] CMake configure...
 
 cd /d "%~dp0"
@@ -190,15 +172,11 @@ if errorlevel 1 (
 echo        Lab1_PassManager.exe — собран
 echo        Lab1_Protector.exe — собран
 
-REM ============================================================
-REM  7. Развёртывание в dist/
-REM ============================================================
 echo [7/7] Развёртывание в %OUTPUT_DIR%...
 
 if exist "%OUTPUT_DIR%" rmdir /s /q "%OUTPUT_DIR%"
 mkdir "%OUTPUT_DIR%"
 
-REM Ищем exe в build/ (структура зависит от генератора)
 set "PM_EXE="
 if exist "%BUILD_DIR%\Lab1_PassManager\Lab1_PassManager.exe" set "PM_EXE=%BUILD_DIR%\Lab1_PassManager\Lab1_PassManager.exe"
 if exist "%BUILD_DIR%\Lab1_PassManager\Release\Lab1_PassManager.exe" set "PM_EXE=%BUILD_DIR%\Lab1_PassManager\Release\Lab1_PassManager.exe"

@@ -7,8 +7,6 @@ set(CMAKE_AUTOMOC ON)
 
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets)
 
-# --- OpenSSL ---
-# Поиск: 1) переменная OPENSSL_ROOT_DIR  2) стандартные пути
 if(NOT OPENSSL_ROOT_DIR)
     if(DEFINED ENV{OPENSSL_DIR})
         set(OPENSSL_ROOT_DIR "$ENV{OPENSSL_DIR}")
@@ -18,7 +16,7 @@ endif()
 find_package(OpenSSL QUIET)
 
 if(NOT OpenSSL_FOUND AND OPENSSL_ROOT_DIR)
-    # Для установок без .cmake/.pc (slproweb и т.п.) — ручной поиск
+
     find_path(OPENSSL_INCLUDE_DIR openssl/evp.h PATHS "${OPENSSL_ROOT_DIR}/include" NO_DEFAULT_PATH)
     find_library(OPENSSL_CRYPTO_LIBRARY NAMES crypto libcrypto PATHS "${OPENSSL_ROOT_DIR}/lib" NO_DEFAULT_PATH)
     find_file(OPENSSL_CRYPTO_DLL NAMES libcrypto-3-x64.dll libcrypto-3.dll PATHS "${OPENSSL_ROOT_DIR}/bin" NO_DEFAULT_PATH)
@@ -46,7 +44,6 @@ if(NOT OpenSSL_FOUND)
         "  cmake -DOPENSSL_ROOT_DIR=C:/OpenSSL-Win64 ..")
 endif()
 
-# --- Sources ---
 set(SOURCES
     main.cpp
     loginwindow.cpp
@@ -77,8 +74,6 @@ if(WIN32)
     target_link_libraries(Lab1_PassManager PRIVATE advapi32)
 endif()
 
-# --- Автоматическое развёртывание: после сборки рядом с exe кладём Qt DLL и OpenSSL,
-# чтобы программа запускалась двойным кликом без Qt в PATH ---
 if(WIN32)
     get_target_property(_qt_qmake Qt6::qmake IMPORTED_LOCATION)
     get_filename_component(_qt_bin "${_qt_qmake}" DIRECTORY)
@@ -96,7 +91,6 @@ if(WIN32)
         message(WARNING "windeployqt не найден: Qt DLL придётся копировать вручную")
     endif()
 
-    # OpenSSL DLL (libcrypto) рядом с exe
     set(_ossl_hints "${OPENSSL_ROOT_DIR}/bin" "$ENV{OPENSSL_DIR}/bin")
     if(OPENSSL_CRYPTO_LIBRARY)
         get_filename_component(_ossl_lib_dir "${OPENSSL_CRYPTO_LIBRARY}" DIRECTORY)
@@ -110,7 +104,6 @@ if(WIN32)
     endif()
 endif()
 
-# Зашифрованный файл данных (PIN 1234) — рядом с exe, оттуда его читает программа
 add_custom_command(TARGET Lab1_PassManager POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
             "${CMAKE_CURRENT_SOURCE_DIR}/credentials.json.enc" "$<TARGET_FILE_DIR:Lab1_PassManager>"

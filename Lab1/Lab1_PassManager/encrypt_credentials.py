@@ -1,14 +1,4 @@
 #!/usr/bin/env python3
-"""
-Utility to prepare the encrypted credentials file for Lab1_PassManager.
-
-Steps:
-1. Reads credentials_plain.json
-2. Encrypts each login/password with layer-2 AES-256-CBC (PBKDF2 key from PIN + LAYER2_SALT)
-3. Builds a new JSON with url (plaintext), encrypted_login, encrypted_password (base64)
-4. Encrypts the entire JSON with layer-1 AES-256-CBC (PBKDF2 key from PIN + LAYER1_SALT)
-5. Writes IV + ciphertext to credentials.json.enc
-"""
 
 import json
 import hashlib
@@ -30,7 +20,6 @@ LAYER1_SALT = bytes.fromhex("a1b2c3d4e5f60718")
 LAYER2_SALT = bytes.fromhex("18070605d4c3b2a1")
 LAYER2_IV   = bytes.fromhex("00112233445566778899aabbccddeeff")
 
-
 def derive_key(pin: str, salt: bytes) -> bytes:
     kdf = PBKDF2HMAC(
         algorithm=hashes.SHA256(),
@@ -41,7 +30,6 @@ def derive_key(pin: str, salt: bytes) -> bytes:
     )
     return kdf.derive(pin.encode("utf-8"))
 
-
 def aes_encrypt(plaintext: bytes, key: bytes, iv: bytes) -> bytes:
     padder = sym_padding.PKCS7(128).padder()
     padded = padder.update(plaintext) + padder.finalize()
@@ -49,7 +37,6 @@ def aes_encrypt(plaintext: bytes, key: bytes, iv: bytes) -> bytes:
     cipher = Cipher(algorithms.AES(key), modes.CBC(iv), backend=default_backend())
     enc = cipher.encryptor()
     return enc.update(padded) + enc.finalize()
-
 
 def main():
     if len(sys.argv) < 2:
@@ -87,7 +74,6 @@ def main():
 
     print(f"Written credentials.json.enc ({IV_LEN + len(ciphertext)} bytes)")
     print("Done!")
-
 
 if __name__ == "__main__":
     main()

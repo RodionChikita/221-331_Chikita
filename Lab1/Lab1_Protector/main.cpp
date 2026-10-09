@@ -9,12 +9,12 @@ int main(int argc, char *argv[])
     std::wstring passManagerPath;
 
     if (argc > 1) {
-        // Path passed as command-line argument
+
         int wlen = MultiByteToWideChar(CP_UTF8, 0, argv[1], -1, nullptr, 0);
         passManagerPath.resize(wlen);
         MultiByteToWideChar(CP_UTF8, 0, argv[1], -1, &passManagerPath[0], wlen);
     } else {
-        // Default: look for Lab1_PassManager.exe next to this exe
+
         wchar_t selfPath[MAX_PATH];
         GetModuleFileNameW(NULL, selfPath, MAX_PATH);
         std::wstring dir(selfPath);
@@ -27,7 +27,6 @@ int main(int argc, char *argv[])
 
     std::wcout << L"[Protector] Starting: " << passManagerPath << std::endl;
 
-    // 1. Create the password manager process
     STARTUPINFOW si;
     PROCESS_INFORMATION pi;
     ZeroMemory(&si, sizeof(si));
@@ -50,7 +49,6 @@ int main(int argc, char *argv[])
     std::cout << "[Protector] CreateProcessW() success, PID = "
               << pi.dwProcessId << std::endl;
 
-    // 2. Attach as debugger
     if (!DebugActiveProcess(pi.dwProcessId)) {
         DWORD err = GetLastError();
         std::cerr << "[Protector] DebugActiveProcess() FAILED, error = 0x"
@@ -63,7 +61,6 @@ int main(int argc, char *argv[])
     std::cout << "[Protector] DebugActiveProcess() success — attached as debugger"
               << std::endl;
 
-    // 3. Debug event loop: pass through all debug events
     DEBUG_EVENT debugEvent;
     DWORD continueStatus;
 
@@ -108,7 +105,7 @@ int main(int argc, char *argv[])
 }
 
 #else
-// Non-Windows stub
+
 int main()
 {
     std::cerr << "Lab1_Protector requires Windows (WinAPI DebugActiveProcess)"

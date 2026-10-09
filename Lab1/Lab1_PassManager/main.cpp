@@ -24,20 +24,6 @@ int main(int argc, char *argv[])
     LoginWindow loginWindow;
     CredentialsWindow credentialsWindow;
 
-    // --- Anti-debug: IsDebuggerPresent ---
-    // Uncomment the block below for the defense demonstration.
-    // Comment it out when testing the Protector (self-debugging) approach.
-    /*
-    if (AntiDebug::isDebuggerAttached()) {
-        loginWindow.show();
-        loginWindow.showAttackWarning(
-            "ВНИМАНИЕ: Обнаружен отладчик!\n"
-            "Работа приложения заблокирована.");
-        return app.exec();
-    }
-    */
-
-    // --- Integrity check: .text segment hash ---
     if (!IntegrityCheck::verify()) {
         loginWindow.show();
         loginWindow.showAttackWarning(
@@ -47,7 +33,6 @@ int main(int argc, char *argv[])
         return app.exec();
     }
 
-    // --- Normal startup ---
     loginWindow.show();
 
     QObject::connect(&loginWindow, &LoginWindow::pinAccepted,
@@ -78,8 +63,6 @@ int main(int argc, char *argv[])
             Credential cred;
             cred.url = obj["url"].toString();
 
-            // Layer 2: login and password remain encrypted in memory.
-            // The JSON stores them as base64-encoded ciphertexts.
             cred.encryptedLogin = QByteArray::fromBase64(
                 obj["encrypted_login"].toString().toLatin1());
             cred.encryptedPassword = QByteArray::fromBase64(

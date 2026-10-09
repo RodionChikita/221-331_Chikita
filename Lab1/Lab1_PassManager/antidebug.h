@@ -3,9 +3,8 @@
 
 namespace AntiDebug {
 
-    // Returns true if a debugger is detected
     bool isDebuggerAttached();
 
-} // namespace AntiDebug
+}
 
-#endif // ANTIDEBUG_H
+#endif

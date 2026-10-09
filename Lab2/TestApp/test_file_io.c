@@ -1,39 +1,14 @@
-/*
- * ЛР2. Тестовое приложение для проверки работы драйвер-фильтра прозрачного шифрования.
- *
- * Приложение намеренно использует только функции стандартной библиотеки Си
- * (fopen_s/fread/fwrite/fseek/fclose), которые внутри оборачивают системные вызовы
- * WinAPI ReadFile()/WriteFile(). Именно эти вызовы перехватывает минифильтр-драйвер.
- * Такие механизмы, как memory-mapped files (их использует, например, notepad.exe),
- * драйвером не обрабатываются — это допущение лабораторной работы.
- *
- * Условности лабораторной реализации:
- *   - весь файл читается/записывается за один вызов, без разбивки на буферы;
- *   - размер буфера (и файла) фиксирован константой BUFFER_SIZE и кратен 16 байтам
- *     (размер блока AES), поэтому паддинг не требуется.
- *
- * Сборка:  cl /W4 test_file_io.c           (из x64 Native Tools Command Prompt)
- *     или:  gcc -Wall -o test_file_io.exe test_file_io.c
- *
- * Использование:
- *   test_file_io.exe write <файл> <текст>   — записать текст в файл (драйвер шифрует)
- *   test_file_io.exe read  <файл>           — прочитать файл (драйвер расшифровывает)
- */
-
 #define _CRT_SECURE_NO_WARNINGS
 #include <stdio.h>
 #include <string.h>
 
-/* Фиксированный размер файла/буфера, кратный размеру блока AES (16 байт). */
 #define BUFFER_SIZE 64
 
-/* Записать ровно BUFFER_SIZE байт в файл. Возвращает 0 при успехе. */
 static int write_fixed(const char *path, const char *text)
 {
     FILE *f = NULL;
     unsigned char buffer[BUFFER_SIZE];
 
-    /* Заполняем буфер: сначала текст, затем нули-дополнение до BUFFER_SIZE. */
     memset(buffer, 0, sizeof(buffer));
     strncpy((char *)buffer, text, sizeof(buffer) - 1);
 
@@ -42,7 +17,6 @@ static int write_fixed(const char *path, const char *text)
         return 1;
     }
 
-    /* Запись всего буфера за один вызов — сработает PtPreOperationPassThrough (IRP_MJ_WRITE). */
     if (fwrite(buffer, 1, sizeof(buffer), f) != sizeof(buffer)) {
         printf("[test] write error\n");
         fclose(f);
@@ -54,7 +28,6 @@ static int write_fixed(const char *path, const char *text)
     return 0;
 }
 
-/* Прочитать ровно BUFFER_SIZE байт из файла и вывести содержимое в двух видах. */
 static int read_fixed(const char *path)
 {
     FILE *f = NULL;
@@ -69,13 +42,11 @@ static int read_fixed(const char *path)
 
     fseek(f, 0, SEEK_SET);
 
-    /* Чтение всего буфера за один вызов — сработает PtPostOperationPassThrough (IRP_MJ_READ). */
     got = fread(buffer, 1, sizeof(buffer), f);
     fclose(f);
 
     printf("[test] read %zu bytes from '%s'\n", got, path);
 
-    /* Текстовое представление (то, что видит пользователь). */
     printf("[test] as text : \"");
     for (i = 0; i < got; ++i) {
         unsigned char c = buffer[i];
@@ -83,7 +54,6 @@ static int read_fixed(const char *path)
     }
     printf("\"\n");
 
-    /* Шестнадцатеричное представление первых 32 байт (видно, зашифровано ли на диске). */
     printf("[test] as hex  : ");
     for (i = 0; i < got && i < 32; ++i) {
         printf("%02X ", buffer[i]);

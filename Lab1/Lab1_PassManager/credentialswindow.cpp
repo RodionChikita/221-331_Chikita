@@ -46,12 +46,10 @@ CredentialsWindow::CredentialsWindow(QWidget *parent)
     mainLayout->addWidget(table_);
 
     auto *btnLayout = new QHBoxLayout;
-    showBtn_ = new QPushButton("Показать (расшифровать)");
     copyLoginBtn_ = new QPushButton("Скопировать логин");
     copyPasswordBtn_ = new QPushButton("Скопировать пароль");
     logoutBtn_ = new QPushButton("Выход");
 
-    btnLayout->addWidget(showBtn_);
     btnLayout->addWidget(copyLoginBtn_);
     btnLayout->addWidget(copyPasswordBtn_);
     btnLayout->addStretch();
@@ -59,7 +57,6 @@ CredentialsWindow::CredentialsWindow(QWidget *parent)
     mainLayout->addLayout(btnLayout);
 
     connect(filterEdit_, &QLineEdit::textChanged, this, &CredentialsWindow::onFilterChanged);
-    connect(showBtn_, &QPushButton::clicked, this, &CredentialsWindow::onShowSelected);
     connect(copyLoginBtn_, &QPushButton::clicked, this, &CredentialsWindow::onCopyLogin);
     connect(copyPasswordBtn_, &QPushButton::clicked, this, &CredentialsWindow::onCopyPassword);
     connect(logoutBtn_, &QPushButton::clicked, this, &CredentialsWindow::logoutRequested);
@@ -94,7 +91,6 @@ void CredentialsWindow::populateTable(const QString &filter)
         auto *loginItem = new QTableWidgetItem("*****");
         auto *passItem = new QTableWidgetItem("*****");
 
-        // Store the original index in the URL item
         urlItem->setData(Qt::UserRole, i);
 
         table_->setItem(row, 0, urlItem);
@@ -171,37 +167,4 @@ void CredentialsWindow::onCopyPassword()
     secureErase(decrypted);
 
     QMessageBox::information(this, "Готово", "Пароль скопирован в буфер обмена");
-}
-
-// Показать (расшифровать) логин и пароль выбранной строки прямо в таблице.
-// По умолчанию поля замаскированы '*****'; расшифровка выполняется только после
-// ручного выбора строки и ввода верного пин-кода. При смене фильтра строки снова
-// маскируются (populateTable перерисовывает таблицу).
-void CredentialsWindow::onShowSelected()
-{
-    int row = table_->currentRow();
-    if (row < 0) {
-        QMessageBox::information(this, "Информация", "Выберите запись в таблице");
-        return;
-    }
-
-    int credIndex = table_->item(row, 0)->data(Qt::UserRole).toInt();
-    const auto &cred = credentials_[credIndex];
-
-    QString pin;
-    if (!requestPin(pin)) return;
-
-    QByteArray login = CryptoUtils::decryptField(cred.encryptedLogin, pin);
-    QByteArray pass  = CryptoUtils::decryptField(cred.encryptedPassword, pin);
-    if (login.isEmpty() || pass.isEmpty()) {
-        QMessageBox::warning(this, "Ошибка", "Неверный пин-код или ошибка расшифровки");
-        return;
-    }
-
-    // Показываем расшифрованные значения в ячейках выбранной строки.
-    table_->item(row, 1)->setText(QString::fromUtf8(login));
-    table_->item(row, 2)->setText(QString::fromUtf8(pass));
-
-    secureErase(login);
-    secureErase(pass);
 }

@@ -13,7 +13,6 @@ class LoginWindow : public QWidget
 public:
     explicit LoginWindow(QWidget *parent = nullptr);
 
-    // Show an attack warning and lock the PIN input
     void showAttackWarning(const QString &message);
 
 signals:
@@ -29,4 +28,4 @@ private:
     QLabel *titleLabel_;
 };
 
-#endif // LOGINWINDOW_H
+#endif
