@@ -1,0 +1,13 @@
+# Visual Studio build artifacts
+x64/
+.vs/
+*.user
+
+# Intel SGX edger8r-генерируемые файлы (создаются при сборке заново)
+Enclave_u.c
+Enclave_u.h
+Enclave_t.c
+Enclave_t.h
+
+# Ключ подписи анклава (генерируется автоматически при первой сборке, если отсутствует)
+Enclave_private.pem
