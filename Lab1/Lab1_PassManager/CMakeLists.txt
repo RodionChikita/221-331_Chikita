@@ -76,3 +76,36 @@ target_link_libraries(Lab1_PassManager PRIVATE
 if(WIN32)
     target_link_libraries(Lab1_PassManager PRIVATE advapi32)
 endif()
+
+# --- Автоматическое развёртывание: после сборки рядом с exe кладём Qt DLL и OpenSSL,
+# чтобы программа запускалась двойным кликом без Qt в PATH ---
+if(WIN32)
+    get_target_property(_qt_qmake Qt6::qmake IMPORTED_LOCATION)
+    get_filename_component(_qt_bin "${_qt_qmake}" DIRECTORY)
+    find_program(WINDEPLOYQT_EXECUTABLE windeployqt HINTS "${_qt_bin}" NO_DEFAULT_PATH)
+    if(NOT WINDEPLOYQT_EXECUTABLE)
+        find_program(WINDEPLOYQT_EXECUTABLE windeployqt)
+    endif()
+
+    if(WINDEPLOYQT_EXECUTABLE)
+        add_custom_command(TARGET Lab1_PassManager POST_BUILD
+            COMMAND "${WINDEPLOYQT_EXECUTABLE}" --no-translations --no-system-d3d-compiler
+                    --no-opengl-sw --no-quick-import "$<TARGET_FILE:Lab1_PassManager>"
+            COMMENT "windeployqt: копирование Qt DLL рядом с exe")
+    else()
+        message(WARNING "windeployqt не найден: Qt DLL придётся копировать вручную")
+    endif()
+
+    # OpenSSL DLL (libcrypto) рядом с exe
+    set(_ossl_hints "${OPENSSL_ROOT_DIR}/bin" "$ENV{OPENSSL_DIR}/bin")
+    if(OPENSSL_CRYPTO_LIBRARY)
+        get_filename_component(_ossl_lib_dir "${OPENSSL_CRYPTO_LIBRARY}" DIRECTORY)
+        list(APPEND _ossl_hints "${_ossl_lib_dir}/../bin" "${_ossl_lib_dir}")
+    endif()
+    find_file(_ossl_dll NAMES libcrypto-3-x64.dll libcrypto-3.dll HINTS ${_ossl_hints})
+    if(_ossl_dll)
+        add_custom_command(TARGET Lab1_PassManager POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different "${_ossl_dll}" "$<TARGET_FILE_DIR:Lab1_PassManager>"
+            COMMENT "Копирование libcrypto рядом с exe")
+    endif()
+endif()
