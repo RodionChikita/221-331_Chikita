@@ -1,9 +1,14 @@
 # CMake build artifacts
 build/
+dist/
 CMakeFiles/
 CMakeCache.txt
 cmake_install.cmake
 Makefile
+CMakeUserPresets.json
+
+# Разовые временные каталоги сборки ЛР3 (устаревший подход; теперь см. Lab3/VSProject)
+Lab3/_build/
 
 # Qt/qmake build artifacts
 release/

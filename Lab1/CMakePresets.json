@@ -1,0 +1,31 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": { "major": 3, "minor": 21, "patch": 0 },
+  "configurePresets": [
+    {
+      "name": "mingw-release",
+      "displayName": "Qt 6.8.2 MinGW (Release)",
+      "description": "Собрать через MinGW из Qt 6.8.2. Пути ниже рассчитаны на установку Qt через aqtinstall в C:\\Users\\<user>\\Qt — поправьте при необходимости под свою машину.",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_C_COMPILER": "C:/Users/chiki/Qt/Tools/mingw1310_64/bin/gcc.exe",
+        "CMAKE_CXX_COMPILER": "C:/Users/chiki/Qt/Tools/mingw1310_64/bin/g++.exe",
+        "CMAKE_MAKE_PROGRAM": "C:/Users/chiki/Qt/Tools/Ninja/ninja.exe",
+        "CMAKE_PREFIX_PATH": "C:/Users/chiki/Qt/6.8.2/mingw_64",
+        "OPENSSL_ROOT_DIR": "C:/Users/chiki/Qt/Tools/OpenSSLv3/Win_x64"
+      },
+      "environment": {
+        "PATH": "C:/Users/chiki/Qt/Tools/mingw1310_64/bin;C:/Users/chiki/Qt/6.8.2/mingw_64/bin;$penv{PATH}"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "mingw-release",
+      "configurePreset": "mingw-release",
+      "configuration": "Release"
+    }
+  ]
+}
